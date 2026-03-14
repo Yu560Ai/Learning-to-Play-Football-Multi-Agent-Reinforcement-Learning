@@ -7,7 +7,6 @@ The aim of this project is to study how reinforcement learning (RL) agents can l
 The project investigates whether modern RL methods can learn effective football strategies such as passing, positioning, defending, and shooting through interaction with the environment.
 
 ---
-
 ## Problem Formulation
 
 This project studies reinforcement learning agents in the **Google Research Football** simulation environment.
@@ -16,13 +15,11 @@ The goal is to train an agent that can interact with the football simulator and 
 
 Main resources:
 
-Kaggle Competition (problem description and evaluation setup)  
-https://www.kaggle.com/competitions/google-football  
-The competition challenges participants to train AI agents that can play football in a simulated environment and compete against other agents. :contentReference[oaicite:0]{index=0}
+- Kaggle Competition (problem description and evaluation setup)  
+  https://www.kaggle.com/competitions/google-football  
 
-Google Research Football Environment (official code and simulator)  
-https://github.com/google-research/football  
-This repository provides the football simulation environment used for reinforcement learning research and competitions. :contentReference[oaicite:1]{index=1}
+- Google Research Football Environment (official code and simulator)  
+  https://github.com/google-research/football
 ---
 
 ## What We Plan To Do
