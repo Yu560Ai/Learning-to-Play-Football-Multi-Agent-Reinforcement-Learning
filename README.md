@@ -1,190 +1,176 @@
 # Learning Football Strategies with Multi-Agent Reinforcement Learning
 
-This project investigates how reinforcement learning (RL) agents can learn to play football in a simulated environment using modern multi-agent reinforcement learning techniques. The goal is to train agents that learn football strategies such as passing, shooting, positioning, and defense through interaction with the environment and self-play.
+## Aim
 
-The project uses the Google Research Football environment, originally introduced in the Kaggle "Google Football" competition, which provides a realistic football simulation suitable for reinforcement learning research.
+The aim of this project is to study how reinforcement learning (RL) agents can learn to play football in a simulated environment. In particular, we focus on **multi-agent reinforcement learning**, where multiple agents must cooperate with teammates and compete against opponents.
 
----
-
-# Project Overview
-
-Football is a complex **multi-agent sequential decision-making problem**. At each time step, multiple agents (players) interact within the environment, making decisions based on the current game state.
-
-This environment can be modeled as a **Markov Decision Process (MDP)**:
-
-- **State (s)**: positions of players, ball location, player states, and match context  
-- **Action (a)**: football actions such as move, pass, shoot, tackle  
-- **Reward (r)**: feedback from the environment (e.g., scoring goals)  
-- **Policy (π)**: strategy used by an agent to select actions  
-
-The goal of reinforcement learning is to learn a policy that maximizes the expected cumulative reward.
+The project investigates whether modern RL methods can learn effective football strategies such as passing, positioning, defending, and shooting through interaction with the environment.
 
 ---
 
-# Objectives
+## Problem Formulation
 
-The main objectives of this project are:
+The football game environment can be modeled as a **Markov Decision Process (MDP)**:
 
-- Train agents to play football using reinforcement learning
-- Explore multi-agent reinforcement learning methods
-- Study how strategies emerge through training
-- Compare the performance of modern RL algorithms
+- **State (s)**  
+  Game state including player positions, ball position, player stamina, and match context.
 
----
+- **Action (a)**  
+  Football actions such as moving, passing, shooting, sprinting, or tackling.
 
-# Environment
+- **Reward (r)**  
+  Feedback signal based on game outcomes, such as scoring or conceding goals.
 
-We use the **Google Research Football Environment**, which provides:
+- **Policy (π)**  
+  A mapping from states to actions that defines the agent's strategy.
 
-- Realistic football physics and gameplay
-- Multiple difficulty levels
-- Single-agent and multi-agent control
-- Custom scenarios (1v1, 3v3, full matches)
-
-The environment supports:
-
-- **Feature-based observations** (structured state representation)
-- **Pixel-based observations** (raw game frames)
+The goal is to learn a policy that maximizes the expected cumulative reward during matches.
 
 ---
 
-# Reinforcement Learning Methods
+## What We Plan To Do
 
-This project explores reinforcement learning methods for multi-agent environments.
+1. Train reinforcement learning agents in the football environment.
+2. Implement and compare several RL algorithms.
+3. Allow different trained agents to compete against each other.
+4. Evaluate performance using win rate and other metrics.
+5. Analyze whether meaningful strategies emerge during training.
 
-Possible algorithms include:
+A possible team structure:
+
+- Member A: PPO baseline
+- Member B: Multi-agent PPO (MAPPO)
+- Member C: alternative RL method or improved reward shaping
+
+Agents will be evaluated by playing against:
+
+- built-in AI opponents
+- other trained agents
+- earlier training checkpoints
+
+---
+
+## Environment and Resources
+
+### Football Simulation Environment
+
+We will use the **Google Research Football environment**.
+
+Main features:
+
+- realistic football simulation
+- configurable scenarios (1v1, 3v3, full matches)
+- single-agent and multi-agent modes
+- feature-based or pixel-based observations
+
+Repository:
+
+https://github.com/google-research/football
+
+---
+
+### Computing Resources
+
+Training reinforcement learning agents requires significant computation.
+
+Possible resources:
+
+- local GPU machines
+- university GPU servers
+- parallel simulation environments
+
+Training may require millions of environment steps.
+
+---
+
+## Candidate Algorithms
+
+The following reinforcement learning algorithms will be considered.
 
 ### PPO (Proximal Policy Optimization)
 
-A widely used policy gradient method that optimizes policies using clipped objective functions for stable learning.
+A policy gradient algorithm that performs stable policy updates using a clipped objective function.
+
+Widely used in many RL environments.
+
+---
 
 ### MAPPO (Multi-Agent PPO)
 
-An extension of PPO designed for multi-agent environments where agents cooperate or compete.
+An extension of PPO designed for multi-agent environments.
+
+Allows multiple agents to learn coordinated behaviors.
+
+---
 
 ### DQN (Deep Q-Network)
 
-A value-based reinforcement learning algorithm used as a baseline.
+A value-based reinforcement learning method used as a baseline for comparison.
+
+---
 
 ### Self-Play Training
 
-Agents improve by playing against copies of themselves or past versions, enabling the emergence of increasingly strong strategies.
+Agents improve by playing against copies of themselves or previously trained versions.
+
+This technique has been used in major game AI systems.
 
 ---
 
-# Multi-Agent Reinforcement Learning
+## Evaluation Metrics
 
-Football naturally involves multiple agents interacting in a shared environment.
+Performance will be evaluated using:
 
-Key aspects explored in this project:
+- win rate
+- goal difference
+- average reward
+- training stability
 
-- Cooperative behavior among teammates
-- Competition against opposing agents
-- Emergent strategies learned through interaction
-- Policy coordination between agents
-
----
-
-# Training Pipeline
-
-The training procedure follows these steps:
-
-1. Initialize agent policies randomly
-2. Simulate multiple football matches
-3. Collect state–action–reward trajectories
-4. Update neural network policies using reinforcement learning
-5. Repeat training for many episodes
-
-Parallel simulation can be used to accelerate training.
+We will also qualitatively observe whether agents develop strategies such as passing or defensive positioning.
 
 ---
 
-# Evaluation Metrics
+## Key Papers and References
 
-Agent performance will be evaluated using:
+### Google Research Football
 
-- **Win rate**
-- **Goal difference**
-- **Average episode reward**
-- **Training stability**
-- **Sample efficiency**
+Kurach et al., 2020  
+"Google Research Football: A Novel Reinforcement Learning Environment"
 
-We also analyze qualitative behavior such as passing strategies, defensive positioning, and ball control.
+https://arxiv.org/abs/1907.11180
 
 ---
 
-# Project Structure
+### PPO
 
-```
-project/
-│
-├── README.md
-├── environment/
-│   └── football_env_setup.py
-│
-├── agents/
-│   ├── ppo_agent.py
-│   ├── mappo_agent.py
-│   └── policy_network.py
-│
-├── training/
-│   ├── train.py
-│   └── self_play.py
-│
-├── evaluation/
-│   └── evaluate_agent.py
-│
-└── results/
-    └── training_plots/
-```
+Schulman et al., 2017  
+"Proximal Policy Optimization Algorithms"
+
+https://arxiv.org/abs/1707.06347
 
 ---
 
-# Installation
+### MAPPO
 
-Install required dependencies:
+Yu et al., 2021  
+"The Surprising Effectiveness of PPO in Cooperative Multi-Agent Games"
 
-```bash
-pip install gfootball
-pip install torch
-pip install gym
-pip install numpy
-```
-
-Clone the repository:
-
-```bash
-git clone https://github.com/yourusername/football-rl
-cd football-rl
-```
+https://arxiv.org/abs/2103.01955
 
 ---
 
-# Running Training
+### Deep Q-Network
 
-Start training an agent:
+Mnih et al., 2015  
+"Human-level control through deep reinforcement learning"
 
-```bash
-python training/train.py
-```
-
-Evaluate a trained agent:
-
-```bash
-python evaluation/evaluate_agent.py
-```
+https://www.nature.com/articles/nature14236
 
 ---
 
-# Future Work
+### Self-Play Reinforcement Learning
 
-Possible future extensions include:
+Silver et al., 2018  
+"A General Reinforcement Learning Algorithm that Masters Chess, Shogi and Go through Self-Play"
 
-- Transformer-based reinforcement learning
-- Offline reinforcement learning
-- Hierarchical reinforcement learning
-- Curriculum learning for progressive training
-- Large-scale self-play training
-
----
-
+https://science.org/doi/10.1126/science.aar6404
