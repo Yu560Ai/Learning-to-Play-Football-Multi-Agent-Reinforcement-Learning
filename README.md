@@ -10,22 +10,19 @@ The project investigates whether modern RL methods can learn effective football 
 
 ## Problem Formulation
 
-The football game environment can be modeled as a **Markov Decision Process (MDP)**:
+This project studies reinforcement learning agents in the **Google Research Football** simulation environment.
 
-- **State (s)**  
-  Game state including player positions, ball position, player stamina, and match context.
+The goal is to train an agent that can interact with the football simulator and learn strategies through reinforcement learning.
 
-- **Action (a)**  
-  Football actions such as moving, passing, shooting, sprinting, or tackling.
+Main resources:
 
-- **Reward (r)**  
-  Feedback signal based on game outcomes, such as scoring or conceding goals.
+Kaggle Competition (problem description and evaluation setup)  
+https://www.kaggle.com/competitions/google-football  
+The competition challenges participants to train AI agents that can play football in a simulated environment and compete against other agents. :contentReference[oaicite:0]{index=0}
 
-- **Policy (π)**  
-  A mapping from states to actions that defines the agent's strategy.
-
-The goal is to learn a policy that maximizes the expected cumulative reward during matches.
-
+Google Research Football Environment (official code and simulator)  
+https://github.com/google-research/football  
+This repository provides the football simulation environment used for reinforcement learning research and competitions. :contentReference[oaicite:1]{index=1}
 ---
 
 ## What We Plan To Do
