@@ -44,39 +44,6 @@ Agents will be evaluated by playing against:
 
 ---
 
-## Environment and Resources
-
-### Football Simulation Environment
-
-We will use the **Google Research Football environment**.
-
-Main features:
-
-- realistic football simulation
-- configurable scenarios (1v1, 3v3, full matches)
-- single-agent and multi-agent modes
-- feature-based or pixel-based observations
-
-Repository:
-
-https://github.com/google-research/football
-
----
-
-### Computing Resources
-
-Training reinforcement learning agents requires significant computation.
-
-Possible resources:
-
-- local GPU machines
-- university GPU servers
-- parallel simulation environments
-
-Training may require millions of environment steps.
-
----
-
 ## Candidate Algorithms
 
 The following reinforcement learning algorithms will be considered.
