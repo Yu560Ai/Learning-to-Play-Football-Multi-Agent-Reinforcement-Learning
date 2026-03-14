@@ -188,12 +188,3 @@ Possible future extensions include:
 
 ---
 
-# Contributors
-
-Reinforcement Learning PhD Course Final Project
-
-Team Members:
-
-- Name 1
-- Name 2
-- Name 3
