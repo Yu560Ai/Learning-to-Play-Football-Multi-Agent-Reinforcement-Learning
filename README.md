@@ -1,137 +1,59 @@
 # Learning Football Strategies with Multi-Agent Reinforcement Learning
 
-## Aim
+## Work Note
 
-The aim of this project is to study how reinforcement learning (RL) agents can learn to play football in a simulated environment. In particular, we focus on **multi-agent reinforcement learning**, where multiple agents must cooperate with teammates and compete against opponents.
+This repository is for our group project on Google Research Football.
 
-The project investigates whether modern RL methods can learn effective football strategies such as passing, positioning, defending, and shooting through interaction with the environment.
+## Folder Ownership
 
----
-## Problem Formulation
+- `X_Jiang/`: Jiang's code, experiments, notes, and checkpoints
+- `Y_Fu/`: Fu's code, experiments, notes, and checkpoints
+- `Y_Yao/`: Yao's code, experiments, notes, and checkpoints
+- `football-master/`: local Google Research Football environment
 
-This project studies reinforcement learning agents in the **Google Research Football** simulation environment.
+Each member should work only inside their own folder for custom training code.
 
-The goal is to train an agent that can interact with the football simulator and learn strategies through reinforcement learning.
+Each member can use their own GPT or coding assistant to help generate code, debug issues, and build training pipelines, but the generated code should stay in that member's own folder.
 
-Main resources:
+## Environment
 
-- Kaggle Competition (problem description and evaluation setup)  
-  https://www.kaggle.com/competitions/google-football  
+`football-master/` is the shared football environment for this project.
 
-- Google Research Football Environment (official code and simulator)  
-  https://github.com/google-research/football
----
+Before running any Python code that uses `gfootball`, activate the environment from the repository root:
 
-## What We Plan To Do
+```bash
+source football-master/football-env/bin/activate
+```
 
-1. Train reinforcement learning agents in the football environment.
-2. Implement and compare several RL algorithms.
-3. Allow different trained agents to compete against each other.
-4. Evaluate performance using win rate and other metrics.
-5. Analyze whether meaningful strategies emerge during training.
+Or:
 
-A possible team structure:
+```bash
+cd football-master
+source football-env/bin/activate
+```
 
-- Member A: PPO baseline
-- Member B: Multi-agent PPO (MAPPO)
-- Member C: alternative RL method or improved reward shaping
+When activation succeeds, the terminal prompt should show `(football-env)`.
 
-Agents will be evaluated by playing against:
+## Working Rule
 
-- built-in AI opponents
-- other trained agents
-- earlier training checkpoints
+1. Activate `(football-env)` first.
+2. Go back to the repository root if needed.
+3. Run or develop code inside your own folder only.
+4. Do not put custom training code directly inside `football-master/`.
 
----
+## Quick Evaluation Demo
 
-## Candidate Algorithms
+Before starting your own implementation, you can watch the current example result from `Y_Fu/`.
 
-The following reinforcement learning algorithms will be considered.
+From the repository root:
 
-### PPO (Proximal Policy Optimization)
+```bash
+source football-master/football-env/bin/activate
+python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/latest.pt --episodes 1 --deterministic --render --device cpu
+```
 
-A policy gradient algorithm that performs stable policy updates using a clipped objective function.
+This opens a rendered evaluation episode so you can confirm that the environment, checkpoint, and evaluation pipeline are working.
 
-Widely used in many RL environments.
+## Current Example
 
----
-
-### MAPPO (Multi-Agent PPO)
-
-An extension of PPO designed for multi-agent environments.
-
-Allows multiple agents to learn coordinated behaviors.
-
----
-
-### DQN (Deep Q-Network)
-
-A value-based reinforcement learning method used as a baseline for comparison.
-
----
-
-### Self-Play Training
-
-Agents improve by playing against copies of themselves or previously trained versions.
-
-This technique has been used in major game AI systems.
-
----
-
-## Evaluation Metrics
-
-Performance will be evaluated using:
-
-- win rate
-- goal difference
-- average reward
-- training stability
-
-We will also qualitatively observe whether agents develop strategies such as passing or defensive positioning.
-
----
-
-## Key Papers and References
-
-### Google Research Football
-
-Kurach et al., 2020  
-"Google Research Football: A Novel Reinforcement Learning Environment"
-
-https://arxiv.org/abs/1907.11180
-
----
-
-### PPO
-
-Schulman et al., 2017  
-"Proximal Policy Optimization Algorithms"
-
-https://arxiv.org/abs/1707.06347
-
----
-
-### MAPPO
-
-Yu et al., 2021  
-"The Surprising Effectiveness of PPO in Cooperative Multi-Agent Games"
-
-https://arxiv.org/abs/2103.01955
-
----
-
-### Deep Q-Network
-
-Mnih et al., 2015  
-"Human-level control through deep reinforcement learning"
-
-https://www.nature.com/articles/nature14236
-
----
-
-### Self-Play Reinforcement Learning
-
-Silver et al., 2018  
-"A General Reinforcement Learning Algorithm that Masters Chess, Shogi and Go through Self-Play"
-
-https://science.org/doi/10.1126/science.aar6404
+Fu's current PPO baseline is in `Y_Fu/`.
