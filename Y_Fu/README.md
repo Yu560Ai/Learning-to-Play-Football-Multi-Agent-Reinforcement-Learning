@@ -31,30 +31,30 @@ That means this baseline is already aligned with the multi-agent direction of th
 
 ## Before Running
 
-You still need a working Google Research Football build. If the local source import works but the engine is not compiled yet, build/install the environment from the `football-master` folder first.
+You need a working Google Research Football build in `football-master/`.
 
-You also need PyTorch available in your Python environment.
+Activate the shared environment from the repository root before running anything in `Y_Fu/`:
 
-In the current workspace verification, the missing module is:
-
-```text
-gfootball_engine
+```bash
+source football-master/football-env/bin/activate
 ```
 
-So the next runtime setup step is to build the football engine successfully before launching training.
+The commands below assume that `gfootball` is already installed and that PyTorch is available in `football-env`.
 
 ## Train
 
 From the repository root:
 
 ```bash
-python Y_Fu/train.py
+source football-master/football-env/bin/activate
+python Y_Fu/train.py --device cpu
 ```
 
 For the fastest first run, use the lightning preset:
 
 ```bash
-python Y_Fu/train_lightning.py
+source football-master/football-env/bin/activate
+python Y_Fu/train_lightning.py --device cpu
 ```
 
 This quick-start preset uses:
@@ -68,31 +68,38 @@ This quick-start preset uses:
 The same run is also available from the main trainer:
 
 ```bash
-python Y_Fu/train.py --preset lightning
+python Y_Fu/train.py --preset lightning --device cpu
 ```
 
 Example with a smaller custom quick test run:
 
 ```bash
-python Y_Fu/train.py --total-timesteps 20000 --rollout-steps 128 --save-interval 2
+python Y_Fu/train.py --total-timesteps 20000 --rollout-steps 128 --save-interval 2 --device cpu
 ```
 
 Example keeping the football match setting but shrinking it:
 
 ```bash
-python Y_Fu/train.py --preset small_11v11
+python Y_Fu/train.py --preset small_11v11 --device cpu
 ```
 
 ## Evaluate
 
 ```bash
-python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/latest.pt --episodes 3 --deterministic
+source football-master/football-env/bin/activate
+python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/latest.pt --episodes 3 --deterministic --device cpu
 ```
 
 Compare your checkpoint against a random-action benchmark:
 
 ```bash
-python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/latest.pt --episodes 5 --deterministic --compare-random
+python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/latest.pt --episodes 5 --deterministic --compare-random --device cpu
+```
+
+Watch a rendered evaluation episode:
+
+```bash
+python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/latest.pt --episodes 1 --deterministic --render --device cpu
 ```
 
 Benchmark metrics reported:
@@ -105,7 +112,9 @@ Benchmark metrics reported:
 
 ## Notes
 
+- In the current setup, `--device cpu` is the safe default.
 - `simple115v2` is intended for normal-game scenarios, especially `11_vs_11_*`.
+- The `lightning` preset is only a quick sanity check. It uses a 1-player academy scenario, not a full football match.
 - Episode return in the logs is the **mean reward across controlled players** over the episode.
 - `score_reward`, `goal_diff`, and `win_rate` are useful to compare your policy against the random baseline.
 - If you later want true MAPPO, this code is a good baseline to extend by replacing the value function with a centralized critic.
