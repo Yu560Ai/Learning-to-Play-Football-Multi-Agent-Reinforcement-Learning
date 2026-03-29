@@ -18,6 +18,29 @@ The implementation is designed as a practical starting point for your project:
 - `yfu_football/model.py`: actor-critic network
 - `yfu_football/ppo.py`: rollout collection, GAE, PPO updates, checkpointing
 
+## Available Models
+
+- `cnn`: best for `extracted` or other image-like observations
+- `residual_mlp`: stronger default for `simple115v2`
+- `separate_mlp`: separate actor and critic backbones for larger runs
+- `mlp`: plain baseline
+- `auto`: chooses `cnn` for image-like observations and `residual_mlp` for vector observations
+
+## Recommended Progression
+
+Do not start from full `11_vs_11` immediately.
+
+Recommended order:
+
+1. `academy_run_to_score_with_keeper`
+2. `academy_pass_and_shoot_with_keeper`
+3. `academy_3_vs_1_with_keeper`
+4. `five_vs_five`
+5. `small_11v11`
+6. `full_11v11_residual`
+
+These stages move from short attacking drills to small-team football and only then to full matches.
+
 ## Default Training Setup
 
 The default command trains on:
@@ -71,6 +94,30 @@ The same run is also available from the main trainer:
 python Y_Fu/train.py --preset lightning --device cpu
 ```
 
+Recommended first real training stage:
+
+```bash
+python Y_Fu/train.py --preset academy_run_to_score_with_keeper --device cpu
+```
+
+Passing-focused stage:
+
+```bash
+python Y_Fu/train.py --preset academy_pass_and_shoot_with_keeper --device cpu
+```
+
+Small attacking group stage:
+
+```bash
+python Y_Fu/train.py --preset academy_3_vs_1_with_keeper --device cpu
+```
+
+Small-team football stage:
+
+```bash
+python Y_Fu/train.py --preset five_vs_five --device cpu
+```
+
 Example with a smaller custom quick test run:
 
 ```bash
@@ -81,6 +128,24 @@ Example keeping the football match setting but shrinking it:
 
 ```bash
 python Y_Fu/train.py --preset small_11v11 --device cpu
+```
+
+Wider 3-player run with separate actor and critic:
+
+```bash
+python Y_Fu/train.py --preset small_11v11_wide --device cpu
+```
+
+Recommended stronger 11v11 run:
+
+```bash
+python Y_Fu/train.py --preset full_11v11_residual --device cpu
+```
+
+Alternative larger 11v11 run with separate actor and critic:
+
+```bash
+python Y_Fu/train.py --preset full_11v11_wide --device cpu
 ```
 
 ## Evaluate
@@ -113,8 +178,11 @@ Benchmark metrics reported:
 ## Notes
 
 - In the current setup, `--device cpu` is the safe default.
+- Keep one shared `train.py` and switch experiments by preset instead of creating many separate trainer files.
 - `simple115v2` is intended for normal-game scenarios, especially `11_vs_11_*`.
+- The academy presets and `five_vs_five` use `extracted` observations with the `cnn` model.
 - The `lightning` preset is only a quick sanity check. It uses a 1-player academy scenario, not a full football match.
+- If a checkpoint performs badly in 11v11, prefer `residual_mlp` or `separate_mlp` over the plain MLP baseline.
 - Episode return in the logs is the **mean reward across controlled players** over the episode.
 - `score_reward`, `goal_diff`, and `win_rate` are useful to compare your policy against the random baseline.
 - If you later want true MAPPO, this code is a good baseline to extend by replacing the value function with a centralized critic.

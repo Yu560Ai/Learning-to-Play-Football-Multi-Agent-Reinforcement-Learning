@@ -48,6 +48,7 @@ def import_football_env():
 @dataclass
 class EnvSpec:
     obs_dim: int
+    obs_shape: tuple[int, ...]
     action_dim: int
     num_players: int
 
@@ -86,16 +87,19 @@ class FootballEnvWrapper:
         observation_space = self.env.observation_space
         action_space = self.env.action_space
 
-        obs_shape = tuple(int(dim) for dim in observation_space.shape)
+        full_obs_shape = tuple(int(dim) for dim in observation_space.shape)
         if self._requested_num_players == 1:
             num_players = 1
+            obs_shape = full_obs_shape
             obs_dim = int(np.prod(obs_shape))
-        elif len(obs_shape) == 1:
+        elif len(full_obs_shape) == 1:
             num_players = 1
+            obs_shape = full_obs_shape
             obs_dim = obs_shape[0]
         else:
-            num_players = obs_shape[0]
-            obs_dim = int(np.prod(obs_shape[1:]))
+            num_players = full_obs_shape[0]
+            obs_shape = full_obs_shape[1:]
+            obs_dim = int(np.prod(obs_shape))
 
         if hasattr(action_space, "n"):
             action_dim = int(action_space.n)
@@ -104,7 +108,7 @@ class FootballEnvWrapper:
         else:
             raise TypeError(f"Unsupported action space: {action_space!r}")
 
-        return EnvSpec(obs_dim=obs_dim, action_dim=action_dim, num_players=num_players)
+        return EnvSpec(obs_dim=obs_dim, obs_shape=obs_shape, action_dim=action_dim, num_players=num_players)
 
     @property
     def obs_dim(self) -> int:
@@ -117,6 +121,10 @@ class FootballEnvWrapper:
     @property
     def num_players(self) -> int:
         return self.spec.num_players
+
+    @property
+    def obs_shape(self) -> tuple[int, ...]:
+        return self.spec.obs_shape
 
     def reset(self) -> np.ndarray:
         observation = self.env.reset()

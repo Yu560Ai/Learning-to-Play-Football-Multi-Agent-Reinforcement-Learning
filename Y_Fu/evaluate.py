@@ -19,6 +19,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--deterministic", action="store_true")
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--compare-random", action="store_true")
+    parser.add_argument("--save-video", action="store_true")
+    parser.add_argument("--video-dir", default="Y_Fu/videos")
+    parser.add_argument("--stop-on-success", action="store_true")
     parser.add_argument("--env-name")
     parser.add_argument("--representation")
     parser.add_argument("--rewards")
@@ -44,13 +47,23 @@ def resolve_channel_dimensions(args: argparse.Namespace, config: dict[str, Any])
 
 
 def make_env(args: argparse.Namespace, config: dict[str, Any]) -> FootballEnvWrapper:
+    other_config_options: dict[str, Any] = {}
+    logdir = None
+    if args.save_video:
+        logdir = args.video_dir
+        Path(logdir).mkdir(parents=True, exist_ok=True)
+        other_config_options["dump_full_episodes"] = True
+
     return FootballEnvWrapper(
         env_name=args.env_name or config.get("env_name", "11_vs_11_easy_stochastic"),
         representation=args.representation or config.get("representation", "simple115v2"),
         rewards=args.rewards or config.get("rewards", "scoring,checkpoints"),
         render=args.render,
+        write_video=args.save_video,
+        logdir=logdir,
         num_controlled_players=args.num_controlled_players or config.get("num_controlled_players", 11),
         channel_dimensions=resolve_channel_dimensions(args, config),
+        other_config_options=other_config_options,
     )
 
 
@@ -60,6 +73,7 @@ def evaluate_agent(
     actor: ActorCritic | None,
     device: torch.device,
     deterministic: bool,
+    stop_on_success: bool = False,
 ) -> dict[str, float]:
     episode_returns: list[float] = []
     episode_lengths: list[int] = []
@@ -91,6 +105,7 @@ def evaluate_agent(
         score = env.get_score()
         goal_diff = float(score[0] - score[1]) if score is not None else float("nan")
         win = 1.0 if score is not None and score[0] > score[1] else 0.0
+        success = win > 0.0 or total_score_reward > 0.0
 
         episode_returns.append(episode_return)
         episode_lengths.append(episode_length)
@@ -107,6 +122,10 @@ def evaluate_agent(
             f"goal_diff={goal_diff:.1f} "
             f"length={episode_length}"
         )
+
+        if stop_on_success and success:
+            print(f"success_episode: {episode_idx}")
+            break
 
     return {
         "avg_return": float(np.mean(episode_returns)),
@@ -139,6 +158,9 @@ def main() -> None:
         obs_dim=checkpoint["obs_dim"],
         action_dim=checkpoint["action_dim"],
         hidden_sizes=tuple(config.get("hidden_sizes", [256, 256])),
+        obs_shape=tuple(checkpoint.get("obs_shape", (checkpoint["obs_dim"],))),
+        model_type=config.get("model_type", "auto"),
+        feature_dim=int(config.get("feature_dim", 256)),
     )
     model.load_state_dict(checkpoint["model_state_dict"])
     device = resolve_device(args.device)
@@ -151,9 +173,12 @@ def main() -> None:
         actor=model,
         device=device,
         deterministic=args.deterministic,
+        stop_on_success=args.stop_on_success,
     )
     env.close()
     print_summary("trained_policy", trained_metrics)
+    if args.save_video:
+        print(f"video_output_dir: {args.video_dir}")
 
     if args.compare_random:
         random_env = make_env(args, config)
@@ -163,6 +188,7 @@ def main() -> None:
             actor=None,
             device=device,
             deterministic=args.deterministic,
+            stop_on_success=args.stop_on_success,
         )
         random_env.close()
         print_summary("random_policy", random_metrics)

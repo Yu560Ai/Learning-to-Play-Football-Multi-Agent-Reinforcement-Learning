@@ -13,7 +13,7 @@ import torch
 from torch import nn
 
 from .envs import FootballEnvWrapper
-from .model import ActorCritic
+from .model import MODEL_TYPES, ActorCritic
 
 
 @dataclass
@@ -23,6 +23,8 @@ class PPOConfig:
     rewards: str = "scoring,checkpoints"
     num_controlled_players: int = 11
     channel_dimensions: tuple[int, int] = (42, 42)
+    model_type: str = "auto"
+    feature_dim: int = 256
     total_timesteps: int = 500_000
     rollout_steps: int = 256
     update_epochs: int = 4
@@ -42,6 +44,7 @@ class PPOConfig:
     save_dir: str = "Y_Fu/checkpoints"
     logdir: str = "Y_Fu/logs"
     device: str = "auto"
+    init_checkpoint: str | None = None
 
 
 PRESET_OVERRIDES: dict[str, dict[str, Any]] = {
@@ -49,6 +52,8 @@ PRESET_OVERRIDES: dict[str, dict[str, Any]] = {
     "lightning": {
         "env_name": "academy_empty_goal_close",
         "representation": "extracted",
+        "model_type": "cnn",
+        "feature_dim": 256,
         "rewards": "scoring,checkpoints",
         "num_controlled_players": 1,
         "channel_dimensions": (42, 42),
@@ -59,10 +64,86 @@ PRESET_OVERRIDES: dict[str, dict[str, Any]] = {
         "learning_rate": 3e-4,
         "hidden_sizes": (128, 128),
         "save_interval": 2,
+        "save_dir": "Y_Fu/checkpoints/lightning",
+        "logdir": "Y_Fu/logs/lightning",
+    },
+    "academy_run_to_score_with_keeper": {
+        "env_name": "academy_run_to_score_with_keeper",
+        "representation": "extracted",
+        "model_type": "cnn",
+        "feature_dim": 256,
+        "rewards": "scoring,checkpoints",
+        "num_controlled_players": 1,
+        "channel_dimensions": (42, 42),
+        "total_timesteps": 60_000,
+        "rollout_steps": 128,
+        "update_epochs": 3,
+        "num_minibatches": 4,
+        "learning_rate": 3e-4,
+        "hidden_sizes": (128, 128),
+        "save_interval": 5,
+        "save_dir": "Y_Fu/checkpoints/academy_run_to_score_with_keeper",
+        "logdir": "Y_Fu/logs/academy_run_to_score_with_keeper",
+    },
+    "academy_pass_and_shoot_with_keeper": {
+        "env_name": "academy_pass_and_shoot_with_keeper",
+        "representation": "extracted",
+        "model_type": "cnn",
+        "feature_dim": 256,
+        "rewards": "scoring,checkpoints",
+        "num_controlled_players": 2,
+        "channel_dimensions": (42, 42),
+        "total_timesteps": 100_000,
+        "rollout_steps": 192,
+        "update_epochs": 4,
+        "num_minibatches": 4,
+        "learning_rate": 3e-4,
+        "hidden_sizes": (256, 256),
+        "save_interval": 5,
+        "save_dir": "Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper",
+        "logdir": "Y_Fu/logs/academy_pass_and_shoot_with_keeper",
+    },
+    "academy_3_vs_1_with_keeper": {
+        "env_name": "academy_3_vs_1_with_keeper",
+        "representation": "extracted",
+        "model_type": "cnn",
+        "feature_dim": 256,
+        "rewards": "scoring,checkpoints",
+        "num_controlled_players": 3,
+        "channel_dimensions": (42, 42),
+        "total_timesteps": 150_000,
+        "rollout_steps": 256,
+        "update_epochs": 4,
+        "num_minibatches": 4,
+        "learning_rate": 3e-4,
+        "hidden_sizes": (256, 256),
+        "save_interval": 10,
+        "save_dir": "Y_Fu/checkpoints/academy_3_vs_1_with_keeper",
+        "logdir": "Y_Fu/logs/academy_3_vs_1_with_keeper",
+    },
+    "five_vs_five": {
+        "env_name": "5_vs_5",
+        "representation": "extracted",
+        "model_type": "cnn",
+        "feature_dim": 256,
+        "rewards": "scoring,checkpoints",
+        "num_controlled_players": 4,
+        "channel_dimensions": (42, 42),
+        "total_timesteps": 250_000,
+        "rollout_steps": 256,
+        "update_epochs": 4,
+        "num_minibatches": 4,
+        "learning_rate": 2.5e-4,
+        "hidden_sizes": (256, 256),
+        "save_interval": 10,
+        "save_dir": "Y_Fu/checkpoints/five_vs_five",
+        "logdir": "Y_Fu/logs/five_vs_five",
     },
     "small_11v11": {
         "env_name": "11_vs_11_easy_stochastic",
         "representation": "simple115v2",
+        "model_type": "residual_mlp",
+        "feature_dim": 256,
         "rewards": "scoring,checkpoints",
         "num_controlled_players": 3,
         "channel_dimensions": (42, 42),
@@ -72,6 +153,62 @@ PRESET_OVERRIDES: dict[str, dict[str, Any]] = {
         "num_minibatches": 4,
         "hidden_sizes": (128, 128),
         "save_interval": 5,
+        "save_dir": "Y_Fu/checkpoints/small_11v11",
+        "logdir": "Y_Fu/logs/small_11v11",
+    },
+    "small_11v11_wide": {
+        "env_name": "11_vs_11_easy_stochastic",
+        "representation": "simple115v2",
+        "model_type": "separate_mlp",
+        "feature_dim": 256,
+        "rewards": "scoring,checkpoints",
+        "num_controlled_players": 3,
+        "channel_dimensions": (42, 42),
+        "total_timesteps": 120_000,
+        "rollout_steps": 256,
+        "update_epochs": 4,
+        "num_minibatches": 4,
+        "learning_rate": 3e-4,
+        "hidden_sizes": (256, 256, 256),
+        "save_interval": 10,
+        "save_dir": "Y_Fu/checkpoints/small_11v11_wide",
+        "logdir": "Y_Fu/logs/small_11v11_wide",
+    },
+    "full_11v11_residual": {
+        "env_name": "11_vs_11_easy_stochastic",
+        "representation": "simple115v2",
+        "model_type": "residual_mlp",
+        "feature_dim": 256,
+        "rewards": "scoring,checkpoints",
+        "num_controlled_players": 11,
+        "channel_dimensions": (42, 42),
+        "total_timesteps": 1_000_000,
+        "rollout_steps": 512,
+        "update_epochs": 4,
+        "num_minibatches": 8,
+        "learning_rate": 2.5e-4,
+        "hidden_sizes": (512, 512, 512),
+        "save_interval": 20,
+        "save_dir": "Y_Fu/checkpoints/full_11v11_residual",
+        "logdir": "Y_Fu/logs/full_11v11_residual",
+    },
+    "full_11v11_wide": {
+        "env_name": "11_vs_11_easy_stochastic",
+        "representation": "simple115v2",
+        "model_type": "separate_mlp",
+        "feature_dim": 256,
+        "rewards": "scoring,checkpoints",
+        "num_controlled_players": 11,
+        "channel_dimensions": (42, 42),
+        "total_timesteps": 1_000_000,
+        "rollout_steps": 512,
+        "update_epochs": 4,
+        "num_minibatches": 8,
+        "learning_rate": 2.5e-4,
+        "hidden_sizes": (512, 512, 512),
+        "save_interval": 20,
+        "save_dir": "Y_Fu/checkpoints/full_11v11_wide",
+        "logdir": "Y_Fu/logs/full_11v11_wide",
     },
 }
 
@@ -134,15 +271,29 @@ class PPOTrainer:
             obs_dim=self.env.obs_dim,
             action_dim=self.env.action_dim,
             hidden_sizes=config.hidden_sizes,
+            obs_shape=self.env.obs_shape,
+            model_type=config.model_type,
+            feature_dim=config.feature_dim,
         ).to(self.device)
+        self.init_checkpoint = config.init_checkpoint
+        if self.init_checkpoint:
+            self._load_initial_checkpoint(self.init_checkpoint)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate, eps=1e-5)
         self.save_dir = Path(config.save_dir)
         self.save_dir.mkdir(parents=True, exist_ok=True)
         Path(config.logdir).mkdir(parents=True, exist_ok=True)
+        if self.init_checkpoint:
+            print(f"Initialized model from checkpoint: {self.init_checkpoint}")
 
         self.total_agent_steps = 0
         self.current_episode_return = 0.0
+        self.current_episode_score_reward = 0.0
         self.current_episode_length = 0
+
+    def _load_initial_checkpoint(self, checkpoint_path: str) -> None:
+        checkpoint = torch.load(checkpoint_path, map_location="cpu")
+        state_dict = checkpoint["model_state_dict"]
+        self.model.load_state_dict(state_dict, strict=True)
 
     def collect_rollout(self, observation: np.ndarray) -> tuple[np.ndarray, dict[str, np.ndarray], dict[str, float]]:
         steps = self.config.rollout_steps
@@ -157,6 +308,8 @@ class PPOTrainer:
 
         completed_returns: list[float] = []
         completed_lengths: list[int] = []
+        completed_score_rewards: list[float] = []
+        completed_successes: list[float] = []
 
         for step in range(steps):
             obs_buffer[step] = observation
@@ -165,7 +318,7 @@ class PPOTrainer:
                 actions, logprobs, values = self.model.act(obs_tensor)
 
             action_np = actions.cpu().numpy()
-            next_observation, reward, done, _ = self.env.step(action_np)
+            next_observation, reward, done, info = self.env.step(action_np)
 
             action_buffer[step] = action_np
             logprob_buffer[step] = logprobs.cpu().numpy()
@@ -174,14 +327,23 @@ class PPOTrainer:
             done_buffer[step] = float(done)
 
             self.current_episode_return += float(np.mean(reward))
+            self.current_episode_score_reward += float(info.get("score_reward", 0.0))
             self.current_episode_length += 1
             self.total_agent_steps += num_players
 
             observation = next_observation
             if done:
+                score = self.env.get_score()
+                if score is not None:
+                    success = 1.0 if score[0] > score[1] else 0.0
+                else:
+                    success = 1.0 if self.current_episode_score_reward > 0.0 else 0.0
                 completed_returns.append(self.current_episode_return)
                 completed_lengths.append(self.current_episode_length)
+                completed_score_rewards.append(self.current_episode_score_reward)
+                completed_successes.append(success)
                 self.current_episode_return = 0.0
+                self.current_episode_score_reward = 0.0
                 self.current_episode_length = 0
                 observation = self.env.reset()
 
@@ -211,6 +373,10 @@ class PPOTrainer:
             "episodes_finished": float(len(completed_returns)),
             "mean_episode_return": float(np.mean(completed_returns)) if completed_returns else float("nan"),
             "mean_episode_length": float(np.mean(completed_lengths)) if completed_lengths else float("nan"),
+            "min_episode_length": float(np.min(completed_lengths)) if completed_lengths else float("nan"),
+            "max_episode_length": float(np.max(completed_lengths)) if completed_lengths else float("nan"),
+            "mean_score_reward": float(np.mean(completed_score_rewards)) if completed_score_rewards else float("nan"),
+            "success_rate": float(np.mean(completed_successes)) if completed_successes else float("nan"),
         }
         return observation, batch, metrics
 
@@ -301,6 +467,7 @@ class PPOTrainer:
                 "optimizer_state_dict": self.optimizer.state_dict(),
                 "config": asdict(self.config),
                 "obs_dim": self.env.obs_dim,
+                "obs_shape": self.env.obs_shape,
                 "action_dim": self.env.action_dim,
                 "num_players": self.env.num_players,
                 "update": update,
@@ -321,15 +488,46 @@ class PPOTrainer:
             update_metrics = self.update(batch)
 
             if update % self.config.log_interval == 0:
+                return_text = (
+                    f"{rollout_metrics['mean_episode_return']:.3f}"
+                    if math.isfinite(rollout_metrics["mean_episode_return"])
+                    else "n/a"
+                )
+                length_text = (
+                    f"{rollout_metrics['mean_episode_length']:.1f}"
+                    if math.isfinite(rollout_metrics["mean_episode_length"])
+                    else "n/a"
+                )
+                length_range_text = (
+                    f"{int(rollout_metrics['min_episode_length'])}-{int(rollout_metrics['max_episode_length'])}"
+                    if math.isfinite(rollout_metrics["min_episode_length"])
+                    and math.isfinite(rollout_metrics["max_episode_length"])
+                    else "n/a"
+                )
+                score_reward_text = (
+                    f"{rollout_metrics['mean_score_reward']:.3f}"
+                    if math.isfinite(rollout_metrics["mean_score_reward"])
+                    else "n/a"
+                )
+                success_text = (
+                    f"{rollout_metrics['success_rate']:.3f}"
+                    if math.isfinite(rollout_metrics["success_rate"])
+                    else "n/a"
+                )
                 print(
                     f"[update {update}/{num_updates}] "
                     f"agent_steps={self.total_agent_steps} "
+                    f"model={self.config.model_type} "
                     f"policy_loss={update_metrics['policy_loss']:.4f} "
                     f"value_loss={update_metrics['value_loss']:.4f} "
                     f"entropy={update_metrics['entropy']:.4f} "
                     f"approx_kl={update_metrics['approx_kl']:.5f} "
-                    f"episode_return={rollout_metrics['mean_episode_return']:.3f} "
-                    f"episode_length={rollout_metrics['mean_episode_length']:.1f}"
+                    f"episodes_finished={int(rollout_metrics['episodes_finished'])} "
+                    f"episode_return={return_text} "
+                    f"score_reward={score_reward_text} "
+                    f"episode_length={length_text} "
+                    f"episode_length_range={length_range_text} "
+                    f"success_rate={success_text}"
                 )
 
             if update % self.config.save_interval == 0:
@@ -350,6 +548,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--num-controlled-players", type=int, default=11)
     parser.add_argument("--channel-width", type=int, default=42)
     parser.add_argument("--channel-height", type=int, default=42)
+    parser.add_argument("--model-type", choices=MODEL_TYPES, default="auto")
+    parser.add_argument("--feature-dim", type=int, default=256)
     parser.add_argument("--total-timesteps", type=int, default=500_000)
     parser.add_argument("--rollout-steps", type=int, default=256)
     parser.add_argument("--update-epochs", type=int, default=4)
@@ -369,6 +569,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--save-dir", default="Y_Fu/checkpoints")
     parser.add_argument("--logdir", default="Y_Fu/logs")
     parser.add_argument("--device", default="auto")
+    parser.add_argument("--init-checkpoint")
     return parser
 
 
@@ -381,6 +582,8 @@ def _build_default_arg_values() -> dict[str, Any]:
     parser.add_argument("--num-controlled-players", type=int, default=11)
     parser.add_argument("--channel-width", type=int, default=42)
     parser.add_argument("--channel-height", type=int, default=42)
+    parser.add_argument("--model-type", choices=MODEL_TYPES, default="auto")
+    parser.add_argument("--feature-dim", type=int, default=256)
     parser.add_argument("--total-timesteps", type=int, default=500_000)
     parser.add_argument("--rollout-steps", type=int, default=256)
     parser.add_argument("--update-epochs", type=int, default=4)
@@ -400,6 +603,7 @@ def _build_default_arg_values() -> dict[str, Any]:
     parser.add_argument("--save-dir", default="Y_Fu/checkpoints")
     parser.add_argument("--logdir", default="Y_Fu/logs")
     parser.add_argument("--device", default="auto")
+    parser.add_argument("--init-checkpoint")
     return vars(parser.parse_args([]))
 
 
