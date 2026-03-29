@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 import torch
 
-from yfu_football.envs import FootballEnvWrapper
+from yfu_football.envs import FootballEnvWrapper, RewardShapingConfig
 from yfu_football.model import ActorCritic
 
 
@@ -22,6 +22,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--save-video", action="store_true")
     parser.add_argument("--video-dir", default="Y_Fu/videos")
     parser.add_argument("--stop-on-success", action="store_true")
+    parser.add_argument("--seed", type=int)
     parser.add_argument("--env-name")
     parser.add_argument("--representation")
     parser.add_argument("--rewards")
@@ -46,6 +47,15 @@ def resolve_channel_dimensions(args: argparse.Namespace, config: dict[str, Any])
     return (42, 42)
 
 
+def set_global_seed(seed: int | None) -> None:
+    if seed is None:
+        return
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
 def make_env(args: argparse.Namespace, config: dict[str, Any]) -> FootballEnvWrapper:
     other_config_options: dict[str, Any] = {}
     logdir = None
@@ -53,6 +63,8 @@ def make_env(args: argparse.Namespace, config: dict[str, Any]) -> FootballEnvWra
         logdir = args.video_dir
         Path(logdir).mkdir(parents=True, exist_ok=True)
         other_config_options["dump_full_episodes"] = True
+    if args.seed is not None:
+        other_config_options["game_engine_random_seed"] = int(args.seed)
 
     return FootballEnvWrapper(
         env_name=args.env_name or config.get("env_name", "11_vs_11_easy_stochastic"),
@@ -64,6 +76,19 @@ def make_env(args: argparse.Namespace, config: dict[str, Any]) -> FootballEnvWra
         num_controlled_players=args.num_controlled_players or config.get("num_controlled_players", 11),
         channel_dimensions=resolve_channel_dimensions(args, config),
         other_config_options=other_config_options,
+        reward_shaping=RewardShapingConfig(
+            pass_success_reward=float(config.get("pass_success_reward", 0.0)),
+            pass_failure_penalty=float(config.get("pass_failure_penalty", 0.0)),
+            pass_progress_reward_scale=float(config.get("pass_progress_reward_scale", 0.0)),
+            shot_attempt_reward=float(config.get("shot_attempt_reward", 0.0)),
+            attacking_possession_reward=float(config.get("attacking_possession_reward", 0.0)),
+            attacking_x_threshold=float(config.get("attacking_x_threshold", 0.55)),
+            final_third_entry_reward=float(config.get("final_third_entry_reward", 0.0)),
+            possession_retention_reward=float(config.get("possession_retention_reward", 0.0)),
+            own_half_turnover_penalty=float(config.get("own_half_turnover_penalty", 0.0)),
+            own_half_x_threshold=float(config.get("own_half_x_threshold", 0.0)),
+            pending_pass_horizon=int(config.get("pending_pass_horizon", 8)),
+        ),
     )
 
 
@@ -149,6 +174,7 @@ def print_summary(name: str, metrics: dict[str, float]) -> None:
 
 def main() -> None:
     args = parse_args()
+    set_global_seed(args.seed)
     checkpoint_path = Path(args.checkpoint)
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     config = checkpoint.get("config", {})

@@ -12,7 +12,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from .envs import FootballEnvWrapper
+from .envs import FootballEnvWrapper, RewardShapingConfig
 from .model import MODEL_TYPES, ActorCritic
 
 
@@ -45,6 +45,17 @@ class PPOConfig:
     logdir: str = "Y_Fu/logs"
     device: str = "auto"
     init_checkpoint: str | None = None
+    pass_success_reward: float = 0.0
+    pass_failure_penalty: float = 0.0
+    pass_progress_reward_scale: float = 0.0
+    shot_attempt_reward: float = 0.0
+    attacking_possession_reward: float = 0.0
+    attacking_x_threshold: float = 0.55
+    final_third_entry_reward: float = 0.0
+    possession_retention_reward: float = 0.0
+    own_half_turnover_penalty: float = 0.0
+    own_half_x_threshold: float = 0.0
+    pending_pass_horizon: int = 8
 
 
 PRESET_OVERRIDES: dict[str, dict[str, Any]] = {
@@ -99,6 +110,15 @@ PRESET_OVERRIDES: dict[str, dict[str, Any]] = {
         "num_minibatches": 4,
         "learning_rate": 3e-4,
         "hidden_sizes": (256, 256),
+        "pass_success_reward": 0.08,
+        "pass_failure_penalty": 0.04,
+        "pass_progress_reward_scale": 0.08,
+        "shot_attempt_reward": 0.03,
+        "attacking_possession_reward": 0.002,
+        "final_third_entry_reward": 0.04,
+        "possession_retention_reward": 0.001,
+        "own_half_turnover_penalty": 0.02,
+        "own_half_x_threshold": 0.0,
         "save_interval": 5,
         "save_dir": "Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper",
         "logdir": "Y_Fu/logs/academy_pass_and_shoot_with_keeper",
@@ -117,6 +137,15 @@ PRESET_OVERRIDES: dict[str, dict[str, Any]] = {
         "num_minibatches": 4,
         "learning_rate": 3e-4,
         "hidden_sizes": (256, 256),
+        "pass_success_reward": 0.08,
+        "pass_failure_penalty": 0.05,
+        "pass_progress_reward_scale": 0.08,
+        "shot_attempt_reward": 0.03,
+        "attacking_possession_reward": 0.002,
+        "final_third_entry_reward": 0.04,
+        "possession_retention_reward": 0.001,
+        "own_half_turnover_penalty": 0.02,
+        "own_half_x_threshold": 0.0,
         "save_interval": 10,
         "save_dir": "Y_Fu/checkpoints/academy_3_vs_1_with_keeper",
         "logdir": "Y_Fu/logs/academy_3_vs_1_with_keeper",
@@ -130,11 +159,20 @@ PRESET_OVERRIDES: dict[str, dict[str, Any]] = {
         "num_controlled_players": 4,
         "channel_dimensions": (42, 42),
         "total_timesteps": 250_000,
-        "rollout_steps": 256,
+        "rollout_steps": 512,
         "update_epochs": 4,
         "num_minibatches": 4,
         "learning_rate": 2.5e-4,
         "hidden_sizes": (256, 256),
+        "pass_success_reward": 0.06,
+        "pass_failure_penalty": 0.05,
+        "pass_progress_reward_scale": 0.06,
+        "shot_attempt_reward": 0.02,
+        "attacking_possession_reward": 0.001,
+        "final_third_entry_reward": 0.03,
+        "possession_retention_reward": 0.0005,
+        "own_half_turnover_penalty": 0.03,
+        "own_half_x_threshold": 0.0,
         "save_interval": 10,
         "save_dir": "Y_Fu/checkpoints/five_vs_five",
         "logdir": "Y_Fu/logs/five_vs_five",
@@ -266,6 +304,19 @@ class PPOTrainer:
             logdir=config.logdir,
             num_controlled_players=config.num_controlled_players,
             channel_dimensions=config.channel_dimensions,
+            reward_shaping=RewardShapingConfig(
+                pass_success_reward=config.pass_success_reward,
+                pass_failure_penalty=config.pass_failure_penalty,
+                pass_progress_reward_scale=config.pass_progress_reward_scale,
+                shot_attempt_reward=config.shot_attempt_reward,
+                attacking_possession_reward=config.attacking_possession_reward,
+                attacking_x_threshold=config.attacking_x_threshold,
+                final_third_entry_reward=config.final_third_entry_reward,
+                possession_retention_reward=config.possession_retention_reward,
+                own_half_turnover_penalty=config.own_half_turnover_penalty,
+                own_half_x_threshold=config.own_half_x_threshold,
+                pending_pass_horizon=config.pending_pass_horizon,
+            ),
         )
         self.model = ActorCritic(
             obs_dim=self.env.obs_dim,
@@ -310,6 +361,7 @@ class PPOTrainer:
         completed_lengths: list[int] = []
         completed_score_rewards: list[float] = []
         completed_successes: list[float] = []
+        completed_scores: list[tuple[int, int]] = []
 
         for step in range(steps):
             obs_buffer[step] = observation
@@ -336,6 +388,7 @@ class PPOTrainer:
                 score = self.env.get_score()
                 if score is not None:
                     success = 1.0 if score[0] > score[1] else 0.0
+                    completed_scores.append((int(score[0]), int(score[1])))
                 else:
                     success = 1.0 if self.current_episode_score_reward > 0.0 else 0.0
                 completed_returns.append(self.current_episode_return)
@@ -369,6 +422,11 @@ class PPOTrainer:
             "returns": returns.reshape(-1),
             "values": value_buffer.reshape(-1),
         }
+        score_examples = (
+            ",".join(f"{left}-{right}" for left, right in completed_scores[-3:])
+            if completed_scores
+            else "n/a"
+        )
         metrics = {
             "episodes_finished": float(len(completed_returns)),
             "mean_episode_return": float(np.mean(completed_returns)) if completed_returns else float("nan"),
@@ -376,6 +434,9 @@ class PPOTrainer:
             "min_episode_length": float(np.min(completed_lengths)) if completed_lengths else float("nan"),
             "max_episode_length": float(np.max(completed_lengths)) if completed_lengths else float("nan"),
             "mean_score_reward": float(np.mean(completed_score_rewards)) if completed_score_rewards else float("nan"),
+            "mean_goals_for": float(np.mean([left for left, _ in completed_scores])) if completed_scores else float("nan"),
+            "mean_goals_against": float(np.mean([right for _, right in completed_scores])) if completed_scores else float("nan"),
+            "score_examples": score_examples,
             "success_rate": float(np.mean(completed_successes)) if completed_successes else float("nan"),
         }
         return observation, batch, metrics
@@ -514,6 +575,16 @@ class PPOTrainer:
                     if math.isfinite(rollout_metrics["success_rate"])
                     else "n/a"
                 )
+                goals_for_text = (
+                    f"{rollout_metrics['mean_goals_for']:.2f}"
+                    if math.isfinite(rollout_metrics["mean_goals_for"])
+                    else "n/a"
+                )
+                goals_against_text = (
+                    f"{rollout_metrics['mean_goals_against']:.2f}"
+                    if math.isfinite(rollout_metrics["mean_goals_against"])
+                    else "n/a"
+                )
                 print(
                     f"[update {update}/{num_updates}] "
                     f"agent_steps={self.total_agent_steps} "
@@ -525,6 +596,9 @@ class PPOTrainer:
                     f"episodes_finished={int(rollout_metrics['episodes_finished'])} "
                     f"episode_return={return_text} "
                     f"score_reward={score_reward_text} "
+                    f"goals_for={goals_for_text} "
+                    f"goals_against={goals_against_text} "
+                    f"score_examples={rollout_metrics['score_examples']} "
                     f"episode_length={length_text} "
                     f"episode_length_range={length_range_text} "
                     f"success_rate={success_text}"
@@ -570,6 +644,17 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--logdir", default="Y_Fu/logs")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--init-checkpoint")
+    parser.add_argument("--pass-success-reward", type=float, default=0.0)
+    parser.add_argument("--pass-failure-penalty", type=float, default=0.0)
+    parser.add_argument("--pass-progress-reward-scale", type=float, default=0.0)
+    parser.add_argument("--shot-attempt-reward", type=float, default=0.0)
+    parser.add_argument("--attacking-possession-reward", type=float, default=0.0)
+    parser.add_argument("--attacking-x-threshold", type=float, default=0.55)
+    parser.add_argument("--final-third-entry-reward", type=float, default=0.0)
+    parser.add_argument("--possession-retention-reward", type=float, default=0.0)
+    parser.add_argument("--own-half-turnover-penalty", type=float, default=0.0)
+    parser.add_argument("--own-half-x-threshold", type=float, default=0.0)
+    parser.add_argument("--pending-pass-horizon", type=int, default=8)
     return parser
 
 
@@ -604,6 +689,17 @@ def _build_default_arg_values() -> dict[str, Any]:
     parser.add_argument("--logdir", default="Y_Fu/logs")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--init-checkpoint")
+    parser.add_argument("--pass-success-reward", type=float, default=0.0)
+    parser.add_argument("--pass-failure-penalty", type=float, default=0.0)
+    parser.add_argument("--pass-progress-reward-scale", type=float, default=0.0)
+    parser.add_argument("--shot-attempt-reward", type=float, default=0.0)
+    parser.add_argument("--attacking-possession-reward", type=float, default=0.0)
+    parser.add_argument("--attacking-x-threshold", type=float, default=0.55)
+    parser.add_argument("--final-third-entry-reward", type=float, default=0.0)
+    parser.add_argument("--possession-retention-reward", type=float, default=0.0)
+    parser.add_argument("--own-half-turnover-penalty", type=float, default=0.0)
+    parser.add_argument("--own-half-x-threshold", type=float, default=0.0)
+    parser.add_argument("--pending-pass-horizon", type=int, default=8)
     return vars(parser.parse_args([]))
 
 
