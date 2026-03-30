@@ -1,0 +1,6 @@
+# Generated football videos and episode dumps
+Y_Fu/videos/
+Y_Fu/videos_test/
+Arena/videos/
+*.avi
+*.dump
