@@ -85,8 +85,12 @@ def make_env(args: argparse.Namespace, config: dict[str, Any]) -> FootballEnvWra
             attacking_x_threshold=float(config.get("attacking_x_threshold", 0.55)),
             final_third_entry_reward=float(config.get("final_third_entry_reward", 0.0)),
             possession_retention_reward=float(config.get("possession_retention_reward", 0.0)),
+            possession_recovery_reward=float(config.get("possession_recovery_reward", 0.0)),
+            defensive_third_recovery_reward=float(config.get("defensive_third_recovery_reward", 0.0)),
+            opponent_attacking_possession_penalty=float(config.get("opponent_attacking_possession_penalty", 0.0)),
             own_half_turnover_penalty=float(config.get("own_half_turnover_penalty", 0.0)),
             own_half_x_threshold=float(config.get("own_half_x_threshold", 0.0)),
+            defensive_x_threshold=float(config.get("defensive_x_threshold", -0.45)),
             pending_pass_horizon=int(config.get("pending_pass_horizon", 8)),
         ),
     )

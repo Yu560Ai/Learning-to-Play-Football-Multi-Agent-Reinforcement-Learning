@@ -67,8 +67,12 @@ class RewardShapingConfig:
     attacking_x_threshold: float = 0.55
     final_third_entry_reward: float = 0.0
     possession_retention_reward: float = 0.0
+    possession_recovery_reward: float = 0.0
+    defensive_third_recovery_reward: float = 0.0
+    opponent_attacking_possession_penalty: float = 0.0
     own_half_turnover_penalty: float = 0.0
     own_half_x_threshold: float = 0.0
+    defensive_x_threshold: float = -0.45
     pending_pass_horizon: int = 8
 
 
@@ -340,5 +344,30 @@ class FootballEnvWrapper:
         ):
             reward_bonus -= self.reward_shaping.own_half_turnover_penalty
             shaping_info["own_half_turnover_penalty"] = -self.reward_shaping.own_half_turnover_penalty
+
+        if (
+            self.reward_shaping.possession_recovery_reward != 0.0
+            and prev_owned_team != 0
+            and next_owned_team == 0
+        ):
+            reward_bonus += self.reward_shaping.possession_recovery_reward
+            shaping_info["possession_recovery_bonus"] = self.reward_shaping.possession_recovery_reward
+
+        if (
+            self.reward_shaping.defensive_third_recovery_reward != 0.0
+            and prev_owned_team == 1
+            and next_owned_team == 0
+            and prev_ball_x <= self.reward_shaping.defensive_x_threshold
+        ):
+            reward_bonus += self.reward_shaping.defensive_third_recovery_reward
+            shaping_info["defensive_third_recovery_bonus"] = self.reward_shaping.defensive_third_recovery_reward
+
+        if (
+            self.reward_shaping.opponent_attacking_possession_penalty != 0.0
+            and next_owned_team == 1
+            and next_ball_x <= self.reward_shaping.defensive_x_threshold
+        ):
+            reward_bonus -= self.reward_shaping.opponent_attacking_possession_penalty
+            shaping_info["opponent_attacking_possession_penalty"] = -self.reward_shaping.opponent_attacking_possession_penalty
 
         return reward_bonus, shaping_info

@@ -53,8 +53,12 @@ class PPOConfig:
     attacking_x_threshold: float = 0.55
     final_third_entry_reward: float = 0.0
     possession_retention_reward: float = 0.0
+    possession_recovery_reward: float = 0.0
+    defensive_third_recovery_reward: float = 0.0
+    opponent_attacking_possession_penalty: float = 0.0
     own_half_turnover_penalty: float = 0.0
     own_half_x_threshold: float = 0.0
+    defensive_x_threshold: float = -0.45
     pending_pass_horizon: int = 8
 
 
@@ -117,6 +121,9 @@ PRESET_OVERRIDES: dict[str, dict[str, Any]] = {
         "attacking_possession_reward": 0.002,
         "final_third_entry_reward": 0.04,
         "possession_retention_reward": 0.001,
+        "possession_recovery_reward": 0.02,
+        "defensive_third_recovery_reward": 0.03,
+        "opponent_attacking_possession_penalty": 0.0015,
         "own_half_turnover_penalty": 0.02,
         "own_half_x_threshold": 0.0,
         "save_interval": 5,
@@ -144,6 +151,9 @@ PRESET_OVERRIDES: dict[str, dict[str, Any]] = {
         "attacking_possession_reward": 0.002,
         "final_third_entry_reward": 0.04,
         "possession_retention_reward": 0.001,
+        "possession_recovery_reward": 0.02,
+        "defensive_third_recovery_reward": 0.03,
+        "opponent_attacking_possession_penalty": 0.0015,
         "own_half_turnover_penalty": 0.02,
         "own_half_x_threshold": 0.0,
         "save_interval": 10,
@@ -171,6 +181,9 @@ PRESET_OVERRIDES: dict[str, dict[str, Any]] = {
         "attacking_possession_reward": 0.001,
         "final_third_entry_reward": 0.03,
         "possession_retention_reward": 0.0005,
+        "possession_recovery_reward": 0.015,
+        "defensive_third_recovery_reward": 0.025,
+        "opponent_attacking_possession_penalty": 0.001,
         "own_half_turnover_penalty": 0.03,
         "own_half_x_threshold": 0.0,
         "save_interval": 10,
@@ -313,8 +326,12 @@ class PPOTrainer:
                 attacking_x_threshold=config.attacking_x_threshold,
                 final_third_entry_reward=config.final_third_entry_reward,
                 possession_retention_reward=config.possession_retention_reward,
+                possession_recovery_reward=config.possession_recovery_reward,
+                defensive_third_recovery_reward=config.defensive_third_recovery_reward,
+                opponent_attacking_possession_penalty=config.opponent_attacking_possession_penalty,
                 own_half_turnover_penalty=config.own_half_turnover_penalty,
                 own_half_x_threshold=config.own_half_x_threshold,
+                defensive_x_threshold=config.defensive_x_threshold,
                 pending_pass_horizon=config.pending_pass_horizon,
             ),
         )
@@ -652,8 +669,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--attacking-x-threshold", type=float, default=0.55)
     parser.add_argument("--final-third-entry-reward", type=float, default=0.0)
     parser.add_argument("--possession-retention-reward", type=float, default=0.0)
+    parser.add_argument("--possession-recovery-reward", type=float, default=0.0)
+    parser.add_argument("--defensive-third-recovery-reward", type=float, default=0.0)
+    parser.add_argument("--opponent-attacking-possession-penalty", type=float, default=0.0)
     parser.add_argument("--own-half-turnover-penalty", type=float, default=0.0)
     parser.add_argument("--own-half-x-threshold", type=float, default=0.0)
+    parser.add_argument("--defensive-x-threshold", type=float, default=-0.45)
     parser.add_argument("--pending-pass-horizon", type=int, default=8)
     return parser
 
@@ -697,8 +718,12 @@ def _build_default_arg_values() -> dict[str, Any]:
     parser.add_argument("--attacking-x-threshold", type=float, default=0.55)
     parser.add_argument("--final-third-entry-reward", type=float, default=0.0)
     parser.add_argument("--possession-retention-reward", type=float, default=0.0)
+    parser.add_argument("--possession-recovery-reward", type=float, default=0.0)
+    parser.add_argument("--defensive-third-recovery-reward", type=float, default=0.0)
+    parser.add_argument("--opponent-attacking-possession-penalty", type=float, default=0.0)
     parser.add_argument("--own-half-turnover-penalty", type=float, default=0.0)
     parser.add_argument("--own-half-x-threshold", type=float, default=0.0)
+    parser.add_argument("--defensive-x-threshold", type=float, default=-0.45)
     parser.add_argument("--pending-pass-horizon", type=int, default=8)
     return vars(parser.parse_args([]))
 

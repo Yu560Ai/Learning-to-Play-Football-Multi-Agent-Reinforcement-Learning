@@ -22,6 +22,12 @@ python -u Y_Fu/train.py --preset five_vs_five --device cpu
 
 ## Continue Training From A Checkpoint
 
+Main 2-agent MARL starting point:
+
+```bash
+python -u Y_Fu/train.py --preset academy_pass_and_shoot_with_keeper --device cpu
+```
+
 Continue `academy_3_vs_1_with_keeper`:
 
 ```bash
@@ -46,10 +52,28 @@ Start `five_vs_five` from the better `academy_3_vs_1_with_keeper` checkpoint:
 python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/update_90.pt
 ```
 
-Start `five_vs_five` from the saved `five_vs_five` checkpoint with stronger offense shaping:
+Start `five_vs_five` from the saved `five_vs_five` checkpoint with balanced offense and defense shaping:
 
 ```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --rollout-steps 1024 --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_140.pt --pass-success-reward 0.08 --pass-failure-penalty 0.06 --pass-progress-reward-scale 0.08 --shot-attempt-reward 0.03 --attacking-possession-reward 0.0015 --final-third-entry-reward 0.04 --possession-retention-reward 0.0008 --own-half-turnover-penalty 0.04
+python -u Y_Fu/train.py --preset five_vs_five --device cpu --rollout-steps 1024 --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_140.pt --pass-success-reward 0.08 --pass-failure-penalty 0.06 --pass-progress-reward-scale 0.08 --shot-attempt-reward 0.03 --attacking-possession-reward 0.0015 --final-third-entry-reward 0.04 --possession-retention-reward 0.0008 --own-half-turnover-penalty 0.04 --possession-recovery-reward 0.02 --defensive-third-recovery-reward 0.03 --opponent-attacking-possession-penalty 0.0015
+```
+
+Longer 7-hour style `five_vs_five` run:
+
+```bash
+python -u Y_Fu/train.py --preset five_vs_five --device cpu --rollout-steps 1024 --total-timesteps 2000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_140.pt --pass-success-reward 0.08 --pass-failure-penalty 0.06 --pass-progress-reward-scale 0.08 --shot-attempt-reward 0.03 --attacking-possession-reward 0.0015 --final-third-entry-reward 0.04 --possession-retention-reward 0.0008 --own-half-turnover-penalty 0.04 --possession-recovery-reward 0.02 --defensive-third-recovery-reward 0.03 --opponent-attacking-possession-penalty 0.0015
+```
+
+Softer balanced `five_vs_five` restart after the harsher shaping proved too punitive:
+
+```bash
+python -u Y_Fu/train.py --preset five_vs_five --device cpu --rollout-steps 1024 --total-timesteps 2000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_140.pt --pass-success-reward 0.08 --pass-failure-penalty 0.03 --pass-progress-reward-scale 0.08 --shot-attempt-reward 0.03 --attacking-possession-reward 0.0015 --final-third-entry-reward 0.04 --possession-retention-reward 0.0010 --own-half-turnover-penalty 0.015 --possession-recovery-reward 0.02 --defensive-third-recovery-reward 0.02 --opponent-attacking-possession-penalty 0.0005
+```
+
+Main paper-direction multi-agent experiment:
+
+```bash
+python -u Y_Fu/train.py --preset five_vs_five --device cpu --rollout-steps 1024 --total-timesteps 2000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_140.pt --pass-success-reward 0.08 --pass-failure-penalty 0.03 --pass-progress-reward-scale 0.08 --shot-attempt-reward 0.03 --attacking-possession-reward 0.0015 --final-third-entry-reward 0.04 --possession-retention-reward 0.0010 --own-half-turnover-penalty 0.015 --possession-recovery-reward 0.02 --defensive-third-recovery-reward 0.02 --opponent-attacking-possession-penalty 0.0005
 ```
 
 Continue `five_vs_five` from the saved 5v5 checkpoint:
@@ -59,6 +83,12 @@ python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 100
 ```
 
 ## Evaluation
+
+Evaluate the 2-agent stage with a less noisy 20-episode sample:
+
+```bash
+python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/latest.pt --episodes 20 --deterministic --compare-random --device cpu
+```
 
 Evaluate the current `academy_3_vs_1_with_keeper` checkpoint:
 
@@ -82,6 +112,38 @@ Render one `five_vs_five` episode:
 
 ```bash
 python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/five_vs_five/latest.pt --episodes 1 --deterministic --render --device cpu
+```
+
+## SaltyFish-Inspired Baseline
+
+Train the separate single-player competition-style baseline:
+
+```bash
+python Y_Fu/train_saltyfish.py --device cpu
+```
+
+Train the upgraded SaltyFish-inspired baseline from an older checkpoint family:
+
+```bash
+python Y_Fu/train_saltyfish.py --device cpu --init-checkpoint Y_Fu/checkpoints/saltyfish_baseline/latest.pt
+```
+
+Run a shorter smoke test:
+
+```bash
+python Y_Fu/train_saltyfish.py --device cpu --total-timesteps 50000 --rollout-steps 256
+```
+
+Evaluate the SaltyFish-inspired baseline:
+
+```bash
+python Y_Fu/evaluate_saltyfish.py --checkpoint Y_Fu/checkpoints/saltyfish_baseline/latest.pt --episodes 5 --compare-random --device cpu
+```
+
+Evaluate a checkpoint with a less noisy 20-episode sample:
+
+```bash
+python Y_Fu/evaluate_saltyfish.py --checkpoint Y_Fu/checkpoints/saltyfish_baseline/update_200.pt --episodes 20 --deterministic --compare-random --device cpu
 ```
 
 ## Save Video

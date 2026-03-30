@@ -6,6 +6,228 @@ This file is the working spec for the `Y_Fu/` training code.
 
 If a future session continues this work, start from this file first.
 
+For the stage-by-stage multi-agent roadmap and completion criteria, also read:
+
+- `Y_Fu/MARL_ROADMAP_SPEC.md`
+
+## Naive Phase
+
+Everything up to this point should be treated as a naive exploratory phase rather than a final method.
+
+Characteristics of this phase:
+
+- the main goal was to get the environment working and obtain nontrivial behavior as quickly as possible
+- training choices were driven by practical iteration rather than a careful method study
+- reward shaping and curriculum steps were added incrementally based on observed failures
+- checkpoint selection was used pragmatically when `latest.pt` was not the best model
+- video inspection was used heavily to diagnose behavior
+
+Limits of this phase:
+
+- the football environment has not yet been studied systematically
+- the design has not yet been aligned carefully with methods from the course
+- the current approach is still mostly shared-policy PPO with hand-added shaping
+- the current results should be treated as rough baselines and engineering probes, not final conclusions
+
+Main purpose of the naive phase:
+
+- verify the environment and code path
+- establish a working curriculum
+- identify the real bottlenecks
+- gather evidence about what fails first:
+  - sparse reward
+  - poor attack
+  - weak cooperation
+  - weak transition defense
+
+The next stage should be more deliberate:
+
+- study the environment and scenario structure more carefully
+- connect the design to methods learned in the course
+- decide which algorithmic changes are principled rather than only heuristic
+- use the current checkpoints, videos, and logs as baseline reference points
+
+## Paper Framing
+
+For the paper, the main research question is multi-agent cooperation, coordination, and RL methods in football.
+
+That means:
+
+- treat Kaggle and the SaltyFish-style single-player line as engineering baselines or side references
+- do not treat Kaggle competition writeups as the main conceptual reference for the paper
+
+Better main references for the paper are:
+
+- MAPPO / centralized-critic MARL papers
+- cooperative multi-agent control papers
+- football or soccer MARL papers where several agents are learned together
+
+Research implication:
+
+- the multi-player `Y_Fu/train.py` branch should be the main paper direction
+- the single-player `Y_Fu/train_saltyfish.py` branch should remain a baseline or comparison line
+
+## Tomorrow Start Here
+
+The single-player SaltyFish line should be stopped as a main research direction.
+
+Reason:
+
+- it is only a single-player control setup inside full `11v11`
+- after a long run, it still did not become a strong enough result to justify more main effort
+- the paper question is multi-agent cooperation, so the main line should move back to the multi-player branch
+
+Tomorrow's main action:
+
+1. Do not continue `Y_Fu/train_saltyfish.py` as the main line.
+2. Start the 2-agent stage:
+
+```bash
+cd ~/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning
+source football-master/football-env/bin/activate
+python -u Y_Fu/train.py --preset academy_pass_and_shoot_with_keeper --device cpu
+```
+
+3. After training, evaluate with:
+
+```bash
+python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/latest.pt --episodes 20 --deterministic --compare-random --device cpu
+```
+
+4. Also evaluate at least one earlier nearby checkpoint, not only `latest.pt`.
+5. Use `Y_Fu/MARL_ROADMAP_SPEC.md` as the criterion for whether the 2-agent stage is finished.
+
+Advance rule for tomorrow's stage:
+
+- advance to the 3-agent stage only if the 2-agent stage clearly beats random and video shows real pass-to-shot cooperation
+
+If the 2-agent stage is unstable:
+
+- keep working on the 2-agent stage before moving up the curriculum
+
+## Next Multi-Agent Experiment
+
+The next main experiment should move back to the multi-player `Y_Fu/train.py` branch and treat the single-player SaltyFish line as a baseline only.
+
+### Main Question
+
+How do several learned players coordinate in football under shared-policy PPO and reward shaping?
+
+Main behaviors of interest:
+
+- passing to teammates under pressure
+- retaining possession instead of forcing low-value dribbles
+- entering the final third with support
+- recovering shape after losing the ball
+- transition defense and possession recovery
+
+### Recommended Next Stage
+
+Use `five_vs_five` as the main next experiment.
+
+Reason:
+
+- `academy_*` stages are useful for building attacking primitives
+- `five_vs_five` is the first stage where cooperation and transition behavior become meaningful
+- it is much more aligned with the paper question than the single-player `11_vs_11_kaggle` line
+
+### Controlled Players
+
+For the current `five_vs_five` preset in code:
+
+- environment: `5_vs_5`
+- controlled players: `4`
+- observation: `extracted`
+- model: `cnn`
+- algorithm: shared-policy PPO
+
+This is already a genuine multi-player learning setup.
+
+### Exact Next Command
+
+Run this as the next main training line:
+
+```bash
+cd ~/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning
+source football-master/football-env/bin/activate
+python -u Y_Fu/train.py --preset five_vs_five --device cpu --rollout-steps 1024 --total-timesteps 2000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_140.pt --pass-success-reward 0.08 --pass-failure-penalty 0.03 --pass-progress-reward-scale 0.08 --shot-attempt-reward 0.03 --attacking-possession-reward 0.0015 --final-third-entry-reward 0.04 --possession-retention-reward 0.0010 --own-half-turnover-penalty 0.015 --possession-recovery-reward 0.02 --defensive-third-recovery-reward 0.02 --opponent-attacking-possession-penalty 0.0005
+```
+
+This should be treated as the main paper training command until a stronger MARL algorithm replaces shared-policy PPO.
+
+### Main Metrics For The Paper
+
+Top-level outcome metrics:
+
+- `avg_goal_diff`
+- `win_rate`
+- `avg_score_reward`
+
+Cooperation-oriented metrics to report:
+
+- pass success rate
+- number of completed passes per episode
+- final-third entry frequency
+- possession retention after pass reception
+- possession recovery frequency
+- own-half turnover frequency
+- goals for and goals against
+
+Interpretation rule:
+
+- goals and win rate are the final outcome
+- cooperation metrics are the intermediate evidence that coordination is actually improving
+
+### Comparison Structure
+
+The paper should compare at least:
+
+1. Random baseline
+2. Earlier weak shared-policy PPO baseline
+3. Reward-shaped multi-player PPO in `five_vs_five`
+4. If time allows, a stronger MARL variant such as centralized-critic PPO / MAPPO-style training
+
+### Near-Term Algorithm Direction
+
+After stabilizing the `five_vs_five` line, the next algorithmically meaningful step is:
+
+- add a centralized critic while keeping decentralized execution
+
+That would align the project much better with MAPPO-style MARL literature than the current single-player Kaggle-style baseline.
+
+## SaltyFish-Inspired Baseline
+
+A separate baseline has been added under `Y_Fu/saltyfish_baseline/` to capture the parts of the public SaltyFish summary that are practical to reproduce locally.
+
+Detailed follow-up diagnosis and the upgraded local baseline plan are recorded in:
+
+- `Y_Fu/SALTYFISH_UPGRADE_SPEC.md`
+
+What this baseline does:
+
+- uses the competition-style single-player scenario `11_vs_11_kaggle`
+- uses `simple115v2` observations
+- groups the simple115 features into separate semantic heads before merging them
+- uses a reduced static action set
+- trains with plain local PPO on one machine
+
+What it does not reproduce exactly:
+
+- distributed IMPALA training
+- full self-play league training
+- behavior cloning from competition trajectories
+- Kaggle ladder evaluation setup
+
+Purpose:
+
+- provide a cleaner competition-style baseline than the rough multi-player shaping experiments
+- give a more systematic reference point before designing a course-informed method
+
+Main entrypoints:
+
+- `python Y_Fu/train_saltyfish.py --device cpu`
+- `python Y_Fu/evaluate_saltyfish.py --checkpoint Y_Fu/checkpoints/saltyfish_baseline/latest.pt --episodes 5 --compare-random --device cpu`
+
 ## Environment
 
 - Repository root:
@@ -68,11 +290,24 @@ The project has been upgraded in this order:
    - final-third entry reward
    - possession retention reward
    - own-half turnover penalty
+13. Video diagnosis after the offense-focused run:
+   - the agent became more offensive
+   - but strategic cooperation was still weak
+   - and defensive transition was too slow or ineffective
+14. Add a balancing defensive shaping pass:
+   - possession recovery reward
+   - defensive-third recovery reward
+   - opponent attacking possession penalty
+15. Observe that the first offense+defense shaping mix was too punitive:
+   - `goals_for` still stayed at zero
+   - several scorelines remained `0-x`
+   - even some `0-0` draws had negative `episode_return`
+16. Prepare a softer restart with lower penalties while keeping the positive offense signals.
 
 Current intended next training command after the last upgrade:
 
 ```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --rollout-steps 1024 --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_140.pt --pass-success-reward 0.08 --pass-failure-penalty 0.06 --pass-progress-reward-scale 0.08 --shot-attempt-reward 0.03 --attacking-possession-reward 0.0015 --final-third-entry-reward 0.04 --possession-retention-reward 0.0008 --own-half-turnover-penalty 0.04
+python -u Y_Fu/train.py --preset five_vs_five --device cpu --rollout-steps 1024 --total-timesteps 2000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_140.pt --pass-success-reward 0.08 --pass-failure-penalty 0.03 --pass-progress-reward-scale 0.08 --shot-attempt-reward 0.03 --attacking-possession-reward 0.0015 --final-third-entry-reward 0.04 --possession-retention-reward 0.0010 --own-half-turnover-penalty 0.015 --possession-recovery-reward 0.02 --defensive-third-recovery-reward 0.02 --opponent-attacking-possession-penalty 0.0005
 ```
 
 ## Current Milestone
@@ -96,6 +331,20 @@ Interpretation:
 - the policy is clearly better than random
 - but it still cannot score reliably and still loses most matches
 - the main remaining bottleneck is offense, not basic survival
+- later video inspection showed that once offense improved, the next bottlenecks became strategic cooperation and transition defense
+- the first stronger defense-penalty mix appears to have been too harsh, so the next restart should reduce the penalties and preserve the attacking incentives
+
+## Reproducible Video Capture
+
+If an interesting evaluation episode appears in an unseeded run, the log proves it happened, but that exact historical episode is not guaranteed to be recoverable later. To make video capture reproducible, rerun evaluation with a fixed seed and save video.
+
+Example:
+
+```bash
+python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/five_vs_five/latest.pt --episodes 5 --deterministic --device cpu --seed 123 --save-video --video-dir Y_Fu/videos/five_vs_five_seed123
+```
+
+With the same checkpoint and the same `--seed`, the episode sequence should repeat, so if episode 4 is `0-0` in that seeded run, you can regenerate the same video again later.
 
 ## What A Checkpoint Is
 
