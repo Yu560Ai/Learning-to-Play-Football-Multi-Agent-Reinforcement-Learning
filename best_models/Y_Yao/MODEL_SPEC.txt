@@ -1,0 +1,12 @@
+Owner: Y_Yao
+Shared model policy:
+- Put only curated shared models here.
+- Prefer the final project task model rather than intermediate curriculum checkpoints.
+
+Recommended fields to record when a model is added:
+- file name
+- source checkpoint path
+- algorithm
+- scenario
+- evaluation summary
+- short reason this model is being shared

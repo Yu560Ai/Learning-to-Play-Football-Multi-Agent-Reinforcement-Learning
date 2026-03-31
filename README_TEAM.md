@@ -7,7 +7,7 @@ This document captures the workflow and best practices for Y_Fu, Y_Yao, and X_Ji
 - ✅ Code (Python scripts, modules, utilities)
 - ✅ Configs, experiment definitions, scenario files
 - ✅ `scripts/` utilities including `manage_models.py` and `setup_team.ps1`
-- ✅ `best_models/` with curated model checkpoints (1-2 per person) only
+- ✅ `best_models/` with curated model checkpoints (1-2 per person) only, organized by owner subfolder
 - ✅ Documentation (`README*.md`, design notes, issue templates)
 
 - ❌ Large checkpoints outside `best_models/` (`*.pt`, `*.pth`, `*.ckpt` in other dirs)
@@ -24,7 +24,7 @@ python scripts/manage_models.py --add --source <path-to-checkpoint> --name Y_Fu 
 ```
 
 3. The script:
-   - copies the model to `best_models/` with naming `{algo}_{scenario}_{name}_{winrate}%.pt`
+   - copies the model to `best_models/<owner>/` with naming `{algo}_{scenario}_{name}_{winrate}%.pt`
    - compresses if >95MB (drop optimizer states if possible)
    - updates `README_TEAM.md` metadata table
    - stages updated files for commit (optionally with `--commit`)
@@ -58,8 +58,28 @@ python scripts/manage_models.py --add --source <path-to-checkpoint> --name Y_Fu 
 ## 5. Preventing large history bloat
 
 - The repo policy is to keep only `best_models/` for shared checkpoints and ignore all other weights.
+- Use owner subfolders under `best_models/`, for example `best_models/Y_Fu/`, `best_models/Y_Yao/`, and `best_models/X_Jiang/`.
 - Existing 3.68GB checkpoint history should not grow further by following `.gitignore`.
 - If you accidentally commit large checkpoints, use `git filter-repo` or `git rebase -i` to remove them before merge.
+
+## 6. Final 2-Week Project Focus
+
+- The main remaining project target is the multi-agent `five_vs_five` line in `Y_Fu/`.
+- Treat `five_vs_five` as the main experiment for training, evaluation, videos, and paper results.
+- Treat the smaller `academy_pass_and_shoot_with_keeper` and `academy_3_vs_1_with_keeper` stages only as curriculum or supporting evidence, not the final endpoint.
+- De-prioritize `11v11` as a main experiment unless extra time remains after `five_vs_five` is stable.
+- De-prioritize side work that does not directly strengthen the `five_vs_five` result, including broad Arena integration work that is not needed for the final evaluation.
+
+Practical rule for the remaining time:
+
+1. First priority: improve and stabilize `Y_Fu/train.py --preset five_vs_five`.
+2. Second priority: evaluate `five_vs_five` against random and earlier weak checkpoints using consistent metrics such as `avg_goal_diff`, `win_rate`, and `avg_score_reward`.
+3. Third priority: keep only enough curriculum evidence from `2_agents` and `3_agents` to explain how the project reached the `five_vs_five` stage.
+
+Scope rule:
+
+- Do not split the remaining research effort across `2_agents`, `3_agents`, `five_vs_five`, and `11v11` equally.
+- The main story for the paper should be: curriculum helped bootstrap behavior, but the final reported multi-agent task is `five_vs_five`.
 
 ---
 
@@ -67,3 +87,4 @@ python scripts/manage_models.py --add --source <path-to-checkpoint> --name Y_Fu 
 
 | File | Algo | Scenario | Owner | Winrate | Notes | Size |
 |---|---|---|---|---|---|---|
+| [shared_policy_ppo_five_vs_five_Y_Fu_0.0%.pt](best_models/Y_Fu/shared_policy_ppo_five_vs_five_Y_Fu_0.0%.pt) | shared_policy_ppo | five_vs_five | Y_Fu | 0.0% | only shared model for now; representative local 5v5 candidate from evaluation report | 10.56 MB |

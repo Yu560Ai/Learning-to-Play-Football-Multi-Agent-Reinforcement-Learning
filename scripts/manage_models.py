@@ -19,6 +19,10 @@ def ensure_best_models_dir():
     BEST_MODELS_DIR.mkdir(parents=True, exist_ok=True)
     marker = BEST_MODELS_DIR / ".gitkeep"
     marker.touch(exist_ok=True)
+    for owner in ("Y_Fu", "Y_Yao", "X_Jiang"):
+        owner_dir = BEST_MODELS_DIR / owner
+        owner_dir.mkdir(parents=True, exist_ok=True)
+        (owner_dir / ".gitkeep").touch(exist_ok=True)
 
 
 def sanitize_tag(value: str) -> str:
@@ -38,6 +42,10 @@ def format_model_filename(algo, scenario, owner, winrate):
     return f"{algo_tag}_{scenario_tag}_{owner_tag}_{winrate_tag}%.pt"
 
 
+def owner_model_dir(owner: str) -> Path:
+    return BEST_MODELS_DIR / sanitize_tag(owner)
+
+
 def load_current_table():
     if not TEAM_README.exists():
         return None
@@ -47,7 +55,7 @@ def load_current_table():
     return content
 
 
-def update_readme_table(filename, algo, scenario, owner, winrate, notes, size_bytes):
+def update_readme_table(model_path, algo, scenario, owner, winrate, notes, size_bytes):
     size_mb = size_bytes / (1024.0 * 1024.0)
     size_str = f"{size_mb:.2f} MB"
     content = load_current_table()
@@ -61,7 +69,9 @@ def update_readme_table(filename, algo, scenario, owner, winrate, notes, size_by
     lines = table.strip().splitlines()
     if len(lines) <= 2:
         lines = ["| File | Algo | Scenario | Owner | Winrate | Notes | Size |", "|---|---|---|---|---|---|---|"]
-    new_row = f"| [{filename}](best_models/{filename}) | {algo} | {scenario} | {owner} | {winrate}% | {notes} | {size_str} |"
+    filename = Path(model_path).name
+    model_link = Path(model_path).as_posix()
+    new_row = f"| [{filename}]({model_link}) | {algo} | {scenario} | {owner} | {winrate}% | {notes} | {size_str} |"
     lines.append(new_row)
 
     new_table = "\n".join(lines)
@@ -99,7 +109,9 @@ def stage_files(paths):
 def add_model(args):
     ensure_best_models_dir()
     filename = format_model_filename(args.algo, args.scenario, args.name, args.winrate)
-    dest_path = BEST_MODELS_DIR / filename
+    dest_dir = owner_model_dir(args.name)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = dest_dir / filename
 
     if not args.source:
         raise ValueError("--source is required to copy model weights into best_models.")
@@ -115,7 +127,7 @@ def add_model(args):
 
     size_bytes = dest_path.stat().st_size
     if size_bytes > MAX_SIZE_BYTES:
-        compressed_path = BEST_MODELS_DIR / f"{dest_path.stem}.compressed.pt"
+        compressed_path = dest_dir / f"{dest_path.stem}.compressed.pt"
         compress_model(dest_path, compressed_path)
         compressed_size = compressed_path.stat().st_size
         if compressed_size < size_bytes:
@@ -127,7 +139,7 @@ def add_model(args):
             compressed_path.unlink()
             print("Compression did not reduce size; using original file")
 
-    update_readme_table(filename, args.algo, args.scenario, args.name, args.winrate, args.notes, size_bytes)
+    update_readme_table(dest_path.relative_to(BEST_MODELS_DIR.parent), args.algo, args.scenario, args.name, args.winrate, args.notes, size_bytes)
 
     if args.commit:
         stage_files([dest_path, TEAM_README])

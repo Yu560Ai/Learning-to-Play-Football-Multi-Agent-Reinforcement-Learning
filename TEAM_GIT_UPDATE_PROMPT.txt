@@ -1,0 +1,30 @@
+Please update this repository from `origin/main` safely.
+
+Repository:
+`/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning`
+
+Requirements:
+
+1. Check `git status --short --branch` first.
+2. Pull the latest changes from `origin/main`.
+3. Preserve any local checkpoint files or local experiment artifacts.
+4. Do not commit or push checkpoint files from personal training folders such as `Y_Fu/checkpoints/...`.
+5. If local checkpoint files cause pull conflicts, keep the pulled branch state for Git history, but preserve the local checkpoint files separately and restore them locally after the pull.
+6. If restored checkpoint files become staged, unstage them while keeping them on disk.
+7. Follow the team policy in `README_TEAM.md`:
+   - shared curated models belong in `best_models/`
+   - large training checkpoints outside `best_models/` should stay local and uncommitted
+8. Do not use destructive commands like `git reset --hard`.
+9. After the pull, summarize:
+   - current branch
+   - whether the repo is up to date
+   - whether any stash was created
+   - whether any local checkpoints were restored but left uncommitted
+
+Important current team focus:
+
+- The final 2-week priority is the multi-agent `five_vs_five` line.
+- `2_agents` and `3_agents` are supporting curriculum only.
+- `11v11` is de-prioritized unless extra time remains.
+
+If there are local changes that are clearly unrelated to the pull, ask before committing anything.
