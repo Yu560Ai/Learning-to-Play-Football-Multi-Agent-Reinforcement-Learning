@@ -1,3 +1,17 @@
-# paste to terminal
+# Git sync steps (local->remote updates)
+
+# Optional: ensure you are on main branch
 git branch -M main
-git push -u origin main
+
+# 1) Stash local changes (including untracked)
+#    used if you have local edits/outputs you don't want to lose
+git stash push --include-untracked -m "pre-pull"
+
+# 2) Pull remote updates from origin/main
+git pull origin main
+
+# 3) Apply local changes back
+git stash pop
+
+# 4) (Optional) push local commits back to remote
+git push origin main

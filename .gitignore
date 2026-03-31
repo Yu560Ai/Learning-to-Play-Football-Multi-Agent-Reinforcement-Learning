@@ -15,11 +15,14 @@ venv/
 .env/
 env/
 .venv/
+football-env-modern/
+football-master/football-env/
 
 # PyCharm
 .idea/
 
-# Checkpoints and model weights (except best_models)
+# Checkpoints and model weights (ignore all except curated best_models folders)
+checkpoints/
 *.pt
 *.pth
 *.ckpt
@@ -41,4 +44,7 @@ Thumbs.db
 
 # Best models directory is intentionally tracked for curated model share
 !best_models/
+!best_models/**
+!**/best_models/
+!**/best_models/**
 best_models/.gitkeep
