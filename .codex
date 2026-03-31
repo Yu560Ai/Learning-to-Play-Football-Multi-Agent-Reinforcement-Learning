@@ -15,3 +15,17 @@ git stash pop
 
 # 4) (Optional) push local commits back to remote
 git push origin main
+
+# Remark: verify git identity if commit complains about missing email/name
+git config --global --get user.name
+git config --global --get user.email
+# If missing, set them:
+# git config --global user.name "jiangxintong02"
+# git config --global user.email "your_github_email@example.com"
+
+# Remark: resolve conflicts if git says there are merge conflicts
+# 1) Open conflicted files in VS Code under "Merge Changes"
+# 2) Choose Accept Current / Accept Incoming / Accept Both
+# 3) Save the file, then stage and commit:
+# git add <file>
+# git commit -m "resolve merge conflicts"
