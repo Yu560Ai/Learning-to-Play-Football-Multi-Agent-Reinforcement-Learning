@@ -8,8 +8,18 @@ Purpose:
 - keep adapter code separate from each student's training folder
 - make future integrations such as `X_Jiang` plug into one stable interface
 
+Team rule:
+
+- follow [ARENA_RULES_SPEC.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Arena/ARENA_RULES_SPEC.md) for official Arena evaluation protocol, shared-model eligibility, and reporting.
+- the intended team workflow is that `Y_Fu`, `Y_Yao`, and `X_Jiang` each provide one curated shared model under `best_models/<owner>/`.
+- each shared model must first play the Google built-in baseline in both directions.
+- if a model loses to the Google baseline overall, it is not eligible for owner-vs-owner Arena matches.
+- only models that clear the Google-baseline gate should enter the full inter-owner comparison suite.
+
 ## Current Support
 
+- `yfu_multiagent`: load the shared `Y_Fu` multi-agent checkpoint format for `five_vs_five`
+- `google_builtin`: use Google Football's built-in AI through the `builtin_ai` action
 - `yfu_saltyfish`: load a `Y_Fu/saltyfish_baseline` checkpoint and play it on either side
 - `random`: random-action baseline
 
