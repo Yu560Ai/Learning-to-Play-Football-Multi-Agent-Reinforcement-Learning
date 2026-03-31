@@ -8,6 +8,8 @@ from typing import Any
 
 import numpy as np
 
+from xjiang_football.rewards import RewardShapingConfig, compute_shaped_reward, extract_step_metrics
+
 
 def _project_root() -> Path:
     # X_Jiang/xjiang_football/envs.py -> project root
@@ -48,15 +50,60 @@ def ensure_local_gfootball_path() -> Path:
     return football_root
 
 
+def _bundled_football_env_site_packages() -> list[Path]:
+    bundled_env_root = _football_source_root() / "football-env"
+    return sorted(bundled_env_root.glob("lib/python*/site-packages"))
+
+
+def _ensure_gym_compatibility() -> None:
+    try:
+        import gym  # type: ignore  # noqa: F401
+        return
+    except ImportError:
+        pass
+
+    for site_packages in _bundled_football_env_site_packages():
+        site_packages_str = str(site_packages)
+        if site_packages.exists() and site_packages_str not in sys.path:
+            sys.path.insert(0, site_packages_str)
+        try:
+            import gym  # type: ignore  # noqa: F401
+            return
+        except ImportError:
+            continue
+
+    try:
+        import gymnasium as gymnasium  # type: ignore
+    except ImportError:
+        return
+
+    # Last-resort import compatibility so error messages stay actionable even
+    # when only gymnasium is present. Full training still prefers real gym.
+    sys.modules.setdefault("gym", gymnasium)
+
+
 def import_football_env():
     ensure_local_gfootball_path()
+    _ensure_gym_compatibility()
     try:
         import gfootball.env as football_env  # type: ignore
     except ImportError as exc:
         football_root = _football_source_root()
+        extra_hint = ""
+        if "gym" in str(exc):
+            extra_hint = (
+                " The local football source tree was found, but neither `gym` "
+                "nor a compatible `gymnasium` alias could be imported."
+            )
+        elif "gfootball_engine" in str(exc):
+            extra_hint = (
+                " The Python package path is visible, but the compiled "
+                "`gfootball_engine` module is missing, so the football engine "
+                "still needs to be built or installed."
+            )
         raise ImportError(
-            "Could not import gfootball from local football-master. "
-            f"Expected source tree at: {football_root}"
+            "Could not import gfootball from the local football source tree at "
+            f"{football_root}.{extra_hint}"
         ) from exc
     return football_env
 
@@ -82,8 +129,10 @@ class FootballEnvWrapper:
         num_controlled_players: int = 4,
         channel_dimensions: tuple[int, int] = (42, 42),
         other_config_options: dict[str, Any] | None = None,
+        reward_shaping: RewardShapingConfig | None = None,
     ) -> None:
         self._requested_num_players = num_controlled_players
+        self.reward_shaping = reward_shaping or RewardShapingConfig()
         config_options = dict(other_config_options or {})
         if write_video:
             # GFootball only persists replay videos when a dump is also enabled.
@@ -162,16 +211,24 @@ class FootballEnvWrapper:
         self,
         actions: np.ndarray | list[int] | int,
     ) -> tuple[np.ndarray, np.ndarray, bool, dict[str, Any]]:
+        previous_raw = self.get_raw_observation()
         action_input = self._format_action(actions)
         observation, reward, done, info = self.env.step(action_input)
+        next_raw = self.get_raw_observation()
 
         formatted_obs = self._format_observation(observation)
         formatted_reward = self._format_reward(reward)
 
-        if info is None:
-            info = {}
+        info_dict = dict(info or {})
+        shaped_bonus, shaping_info = compute_shaped_reward(previous_raw, next_raw, self.reward_shaping)
+        if shaped_bonus != 0.0:
+            formatted_reward = formatted_reward + np.float32(shaped_bonus)
 
-        return formatted_obs, formatted_reward, bool(done), dict(info)
+        info_dict["reward_bonus"] = float(shaped_bonus)
+        info_dict.update(extract_step_metrics(next_raw))
+        info_dict.update(shaping_info)
+
+        return formatted_obs, formatted_reward, bool(done), info_dict
 
     def close(self) -> None:
         if hasattr(self.env, "close"):

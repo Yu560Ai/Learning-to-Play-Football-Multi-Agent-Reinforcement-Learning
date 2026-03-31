@@ -54,6 +54,11 @@ class TrainConfig:
     own_half_turnover_penalty: float = 0.0
     own_half_x_threshold: float = 0.0
     pending_pass_horizon: int = 8
+    defensive_ball_chasing_reward_scale: float = 0.0
+    goalkeeper_overextension_penalty: float = 0.0
+    goalkeeper_max_x: float = -0.35
+    defensive_recovery_reward: float = 0.0
+    defensive_x_threshold: float = 0.15
 
 
 PRESETS: dict[str, dict[str, Any]] = {
@@ -87,24 +92,29 @@ PRESETS: dict[str, dict[str, Any]] = {
         "model_type": "cnn",
         "feature_dim": 256,
         "hidden_sizes": (256, 256),
-        "total_timesteps": 120_000,
-        "rollout_steps": 256,
+        "total_timesteps": 400_000,
+        "rollout_steps": 512,
         "update_epochs": 4,
         "num_minibatches": 4,
         "learning_rate": 2.5e-4,
-        "save_interval": 5,
+        "save_interval": 10,
         "log_interval": 1,
         "save_dir": "X_Jiang/checkpoints/five_v_five_base",
         "logdir": "X_Jiang/logs/five_v_five_base",
         "device": "auto",
         "use_reward_shaping": True,
-        "pass_success_reward": 0.08,
-        "pass_failure_penalty": 0.04,
-        "pass_progress_reward_scale": 0.06,
-        "shot_attempt_reward": 0.03,
-        "attacking_possession_reward": 0.001,
+        "defensive_ball_chasing_reward_scale": 0.03,
+        "goalkeeper_overextension_penalty": 0.08,
+        "goalkeeper_max_x": -0.35,
+        "defensive_recovery_reward": 0.04,
+        "defensive_x_threshold": 0.15,
+        "pass_success_reward": 0.06,
+        "pass_failure_penalty": 0.03,
+        "pass_progress_reward_scale": 0.04,
+        "shot_attempt_reward": 0.02,
+        "attacking_possession_reward": 0.0005,
         "attacking_x_threshold": 0.55,
-        "final_third_entry_reward": 0.03,
+        "final_third_entry_reward": 0.02,
         "possession_retention_reward": 0.0005,
         "own_half_turnover_penalty": 0.02,
         "own_half_x_threshold": 0.0,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import time
 from pathlib import Path
 
 import torch
@@ -60,24 +61,36 @@ def evaluate(
     save_video: bool = False,
     video_dir: str = "X_Jiang/videos/five_v_five_debug",
 ) -> None:
+    print(f"[startup] loading checkpoint={checkpoint_path} device={device}", flush=True)
     checkpoint = load_checkpoint(checkpoint_path, device=device)
     config_dict = checkpoint["config"]
+    print(
+        f"[startup] checkpoint update={checkpoint.get('update', 'n/a')} "
+        f"env_name={config_dict['env_name']} players={config_dict['num_controlled_players']} "
+        f"model={config_dict['model_type']}",
+        flush=True,
+    )
 
+    print("[startup] creating evaluation env", flush=True)
     env = build_env_from_checkpoint(
         config_dict,
         render=render,
         write_video=save_video,
         video_dir=video_dir,
     )
+    print("[startup] building model", flush=True)
     model = build_model_from_checkpoint(checkpoint, device=device)
+    print("[startup] evaluation begins", flush=True)
 
     results = []
 
     for episode in range(episodes):
+        print(f"[episode {episode + 1}] started", flush=True)
         obs = env.reset()
         done = False
         episode_return = 0.0
         steps = 0
+        episode_start = time.time()
 
         while not done:
             obs_tensor = torch.as_tensor(obs, dtype=torch.float32, device=device)
@@ -89,6 +102,14 @@ def evaluate(
 
             episode_return += float(reward.mean())
             steps += 1
+
+            if steps % 100 == 0:
+                print(
+                    f"[episode {episode + 1}] progress "
+                    f"steps={steps} elapsed={time.time() - episode_start:.1f}s "
+                    f"partial_return={episode_return:.3f}",
+                    flush=True,
+                )
 
         score = env.get_score()
         if score is None:

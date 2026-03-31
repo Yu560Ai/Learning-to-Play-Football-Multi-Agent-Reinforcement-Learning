@@ -21,9 +21,19 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Override device, e.g. cpu or cuda. Default uses preset/auto.",
     )
+    parser.add_argument(
+        "--init-checkpoint",
+        type=str,
+        default=None,
+        help="Optional checkpoint path to resume or warm-start training from.",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    ppo_main(preset_name=args.preset, device_override=args.device)
+    ppo_main(
+        preset_name=args.preset,
+        device_override=args.device,
+        init_checkpoint_override=args.init_checkpoint,
+    )

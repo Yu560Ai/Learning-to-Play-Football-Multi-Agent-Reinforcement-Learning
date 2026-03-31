@@ -12,6 +12,7 @@ from torch import nn
 from presets import TrainConfig, build_config
 from xjiang_football.envs import FootballEnvWrapper
 from xjiang_football.model import ActorCritic
+from xjiang_football.rewards import RewardShapingConfig
 
 
 def resolve_device(device: str) -> torch.device:
@@ -57,9 +58,16 @@ def compute_gae(
 class PPOTrainer:
     def __init__(self, config: TrainConfig) -> None:
         self.config = config
+        print(f"[startup] resolving device={config.device}", flush=True)
         self.device = resolve_device(config.device)
+        print(f"[startup] using device={self.device}", flush=True)
         set_seed(config.seed)
 
+        print(
+            f"[startup] creating env env_name={config.env_name} "
+            f"players={config.num_controlled_players} model={config.model_type}",
+            flush=True,
+        )
         self.env = FootballEnvWrapper(
             env_name=config.env_name,
             representation=config.representation,
@@ -68,8 +76,26 @@ class PPOTrainer:
             logdir=config.logdir,
             num_controlled_players=config.num_controlled_players,
             channel_dimensions=config.channel_dimensions,
+            reward_shaping=RewardShapingConfig(
+                enabled=config.use_reward_shaping,
+                defensive_ball_chasing_reward_scale=config.defensive_ball_chasing_reward_scale,
+                goalkeeper_overextension_penalty=config.goalkeeper_overextension_penalty,
+                goalkeeper_max_x=config.goalkeeper_max_x,
+                defensive_recovery_reward=config.defensive_recovery_reward,
+                defensive_x_threshold=config.defensive_x_threshold,
+            ),
+        )
+        print(
+            f"[startup] env ready obs_dim={self.env.obs_dim} action_dim={self.env.action_dim} "
+            f"num_players={self.env.num_players} obs_shape={self.env.obs_shape}",
+            flush=True,
         )
 
+        print(
+            f"[startup] building model type={config.model_type} "
+            f"hidden_sizes={tuple(config.hidden_sizes)} feature_dim={config.feature_dim}",
+            flush=True,
+        )
         self.model = ActorCritic(
             obs_dim=self.env.obs_dim,
             action_dim=self.env.action_dim,
@@ -78,9 +104,12 @@ class PPOTrainer:
             model_type=config.model_type,
             feature_dim=config.feature_dim,
         ).to(self.device)
+        print("[startup] model ready", flush=True)
 
         if config.init_checkpoint is not None:
+            print(f"[startup] loading checkpoint={config.init_checkpoint}", flush=True)
             self.load_initial_checkpoint(config.init_checkpoint)
+            print("[startup] checkpoint loaded", flush=True)
 
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.learning_rate, eps=1e-5)
 
@@ -117,6 +146,10 @@ class PPOTrainer:
         completed_score_rewards: list[float] = []
         completed_successes: list[float] = []
         completed_scores: list[tuple[int, int]] = []
+        step_reward_means: list[float] = []
+        goalkeeper_x_values: list[float] = []
+        active_ball_distances: list[float] = []
+        reward_bonus_values: list[float] = []
 
         for step in range(steps):
             obs_buffer[step] = observation
@@ -133,6 +166,17 @@ class PPOTrainer:
             value_buffer[step] = values.cpu().numpy()
             reward_buffer[step] = reward
             done_buffer[step] = float(done)
+
+            step_reward_means.append(float(np.mean(reward)))
+            reward_bonus_values.append(float(info.get("reward_bonus", 0.0)))
+
+            goalkeeper_x = float(info.get("goalkeeper_x", np.nan))
+            if not np.isnan(goalkeeper_x):
+                goalkeeper_x_values.append(goalkeeper_x)
+
+            active_ball_distance = float(info.get("active_player_distance_to_ball", np.nan))
+            if not np.isnan(active_ball_distance):
+                active_ball_distances.append(active_ball_distance)
 
             self.current_episode_return += float(np.mean(reward))
             self.current_episode_score_reward += float(info.get("score_reward", 0.0))
@@ -196,6 +240,10 @@ class PPOTrainer:
             "mean_score_reward": float(np.mean(completed_score_rewards)) if completed_score_rewards else float("nan"),
             "mean_goals_for": float(np.mean([left for left, _ in completed_scores])) if completed_scores else float("nan"),
             "mean_goals_against": float(np.mean([right for _, right in completed_scores])) if completed_scores else float("nan"),
+            "mean_step_reward": float(np.mean(step_reward_means)) if step_reward_means else float("nan"),
+            "mean_reward_bonus": float(np.mean(reward_bonus_values)) if reward_bonus_values else 0.0,
+            "goalkeeper_mean_x": float(np.mean(goalkeeper_x_values)) if goalkeeper_x_values else float("nan"),
+            "active_player_ball_distance": float(np.mean(active_ball_distances)) if active_ball_distances else float("nan"),
             "score_examples": score_examples,
             "success_rate": float(np.mean(completed_successes)) if completed_successes else float("nan"),
         }
@@ -306,10 +354,21 @@ class PPOTrainer:
         steps_per_update = self.config.rollout_steps * self.env.num_players
         num_updates = math.ceil(self.config.total_timesteps / steps_per_update)
 
+        print(
+            f"[startup] training begins steps_per_update={steps_per_update} "
+            f"num_updates={num_updates}",
+            flush=True,
+        )
         observation = self.env.reset()
         latest_checkpoint = self.save_dir / "latest.pt"
 
         for update in range(1, num_updates + 1):
+            if update == 1:
+                print(
+                    f"[startup] collecting first rollout "
+                    f"rollout_steps={self.config.rollout_steps}",
+                    flush=True,
+                )
             observation, batch, rollout_metrics = self.collect_rollout(observation)
             update_metrics = self.update(batch)
 
@@ -322,13 +381,18 @@ class PPOTrainer:
                     f"entropy={update_metrics['entropy']:.4f} "
                     f"approx_kl={update_metrics['approx_kl']:.5f} "
                     f"episodes_finished={int(rollout_metrics['episodes_finished'])} "
+                    f"mean_step_reward={rollout_metrics['mean_step_reward']:.4f} "
+                    f"mean_reward_bonus={rollout_metrics['mean_reward_bonus']:.4f} "
                     f"episode_return={rollout_metrics['mean_episode_return']:.3f} "
                     f"score_reward={rollout_metrics['mean_score_reward']:.3f} "
                     f"goals_for={rollout_metrics['mean_goals_for']:.2f} "
                     f"goals_against={rollout_metrics['mean_goals_against']:.2f} "
+                    f"goalkeeper_avg_x={rollout_metrics['goalkeeper_mean_x']:.3f} "
+                    f"mean_active_ball_dist={rollout_metrics['active_player_ball_distance']:.3f} "
                     f"score_examples={rollout_metrics['score_examples']} "
                     f"episode_length={rollout_metrics['mean_episode_length']:.1f} "
-                    f"success_rate={rollout_metrics['success_rate']:.3f}"
+                    f"success_rate={rollout_metrics['success_rate']:.3f}",
+                    flush=True,
                 )
 
             if update % self.config.save_interval == 0:
@@ -336,14 +400,26 @@ class PPOTrainer:
 
         latest_checkpoint = self.save_checkpoint("latest.pt", num_updates)
         self.env.close()
-        print(f"Training finished. Latest checkpoint: {latest_checkpoint}")
+        print(f"Training finished. Latest checkpoint: {latest_checkpoint}", flush=True)
         return latest_checkpoint
 
 
-def main(preset_name: str = "five_v_five_debug", device_override: str | None = None) -> Path:
+def main(
+    preset_name: str = "five_v_five_debug",
+    device_override: str | None = None,
+    init_checkpoint_override: str | None = None,
+) -> Path:
     overrides = {}
     if device_override is not None:
         overrides["device"] = device_override
+    if init_checkpoint_override is not None:
+        overrides["init_checkpoint"] = init_checkpoint_override
+
+        checkpoint = torch.load(init_checkpoint_override, map_location="cpu")
+        checkpoint_config = checkpoint.get("config", {})
+        for key in ("hidden_sizes", "model_type", "feature_dim"):
+            if key in checkpoint_config:
+                overrides[key] = checkpoint_config[key]
 
     config = build_config(preset_name, overrides=overrides)
     trainer = PPOTrainer(config)
