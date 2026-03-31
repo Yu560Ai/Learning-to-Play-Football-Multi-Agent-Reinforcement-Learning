@@ -4,3 +4,41 @@ Y_Fu/videos_test/
 Arena/videos/
 *.avi
 *.dump
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.env/
+env/
+.venv/
+
+# PyCharm
+.idea/
+
+# Checkpoints and model weights (except best_models)
+*.pt
+*.pth
+*.ckpt
+
+# Logs, temp, videos
+*.log
+logs/
+log/
+*.tmp
+temp/
+tmp/
+*.mov
+*.mkv
+videos/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Best models directory is intentionally tracked for curated model share
+!best_models/
+best_models/.gitkeep
