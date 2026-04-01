@@ -4,6 +4,24 @@
 
 This repository is for our group project on Google Research Football.
 
+## Current Project Target
+
+The current main target of the project is:
+
+- `5_vs_5` multi-agent football
+
+In the current team setup, this means:
+
+- the learned policy controls `4` left-side outfield agents
+- the goalkeeper is not a learned agent
+- the goalkeeper remains controlled by the environment
+
+So the active project target is:
+
+- `5v5` football with `4` learned outfield agents and `1` environment-controlled goalkeeper
+
+This is the main line for training, evaluation, and reporting.
+
 ## Folder Ownership
 
 - `X_Jiang/`: Jiang's code, experiments, notes, and checkpoints
