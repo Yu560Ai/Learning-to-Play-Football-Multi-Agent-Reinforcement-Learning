@@ -88,3 +88,4 @@ Scope rule:
 | File | Algo | Scenario | Owner | Winrate | Notes | Size |
 |---|---|---|---|---|---|---|
 | [shared_policy_ppo_five_vs_five_Y_Fu_0.0%.pt](best_models/Y_Fu/shared_policy_ppo_five_vs_five_Y_Fu_0.0%.pt) | shared_policy_ppo | five_vs_five | Y_Fu | 0.0% | only shared model for now; representative local 5v5 candidate from evaluation report | 10.56 MB |
+| [role_aware_ppo_five_v_five_X_Jiang_0.0%.pt](best_models/X_Jiang/role_aware_ppo_five_v_five_X_Jiang_0.0%.pt) | role_aware_ppo | five_v_five | X_Jiang | 0.0% | role-aware 5v5 candidate from debug update 40 | 1.45 MB |
