@@ -23,19 +23,19 @@ Use this order:
 ### `academy_run_to_score_with_keeper`
 
 ```bash
-python -u Y_Fu/train.py --preset academy_run_to_score_with_keeper --device cpu
+python -u Y_Fu/train.py --preset academy_run_to_score_with_keeper --total-timesteps 250000 --device cpu
 ```
 
 ### `academy_pass_and_shoot_with_keeper`
 
 ```bash
-python -u Y_Fu/train.py --preset academy_pass_and_shoot_with_keeper --device cpu
+python -u Y_Fu/train.py --preset academy_pass_and_shoot_with_keeper --total-timesteps 800000 --device cpu
 ```
 
 Evaluate:
 
 ```bash
-python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/latest.pt --episodes 20 --deterministic --compare-random --device cpu --seed 123
+python Y_Fu/evaluate.py --checkpoint <best_stage2_checkpoint> --episodes 20 --deterministic --compare-random --device cpu --seed 123
 ```
 
 ### `academy_3_vs_1_with_keeper`
@@ -43,19 +43,19 @@ python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_pass_and_shoot_wit
 Start from the best `academy_pass_and_shoot_with_keeper` checkpoint:
 
 ```bash
-python -u Y_Fu/train.py --preset academy_3_vs_1_with_keeper --device cpu --init-checkpoint Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/latest.pt
+python -u Y_Fu/train.py --preset academy_3_vs_1_with_keeper --total-timesteps 1500000 --device cpu --init-checkpoint <best_stage2_checkpoint>
 ```
 
 Continue from an existing `academy_3_vs_1_with_keeper` checkpoint:
 
 ```bash
-python -u Y_Fu/train.py --preset academy_3_vs_1_with_keeper --device cpu --total-timesteps 300000 --init-checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt
+python -u Y_Fu/train.py --preset academy_3_vs_1_with_keeper --device cpu --total-timesteps 1500000 --init-checkpoint <best_stage3_checkpoint>
 ```
 
 Evaluate:
 
 ```bash
-python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt --episodes 20 --deterministic --compare-random --device cpu --seed 123
+python Y_Fu/evaluate.py --checkpoint <best_stage3_checkpoint> --episodes 20 --deterministic --compare-random --device cpu --seed 123
 ```
 
 Render one episode:
@@ -69,19 +69,19 @@ python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper
 Start from the best Academy checkpoint:
 
 ```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt
+python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 1000000 --init-checkpoint <best_academy_checkpoint>
 ```
 
-Start from a better earlier Academy checkpoint if that one looks cleaner:
+Continue the early transfer check to `500k env steps`:
 
 ```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/update_90.pt
+python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 2000000 --init-checkpoint <best_stage4_checkpoint>
 ```
 
-Continue a `5_vs_5` PPO run from an existing checkpoint:
+Continue a longer `5_vs_5` PPO run only if transfer already looks real:
 
 ```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_70.pt
+python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 10000000 --init-checkpoint <best_stage4_checkpoint>
 ```
 
 Evaluate the current `5_vs_5` checkpoint:
@@ -195,5 +195,6 @@ python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/five_vs_five/latest.pt --e
 - Do not mix Academy and `5_vs_5` datasets in the same initial IQL run.
 - Use preset-specific checkpoints, not a generic `latest.pt` from another stage.
 - `latest.pt` is not automatically the best checkpoint.
+- Use Academy as a capped warm-up in `env steps`, not as an open-ended compute sink.
 - Read [OFFLINE_RL_COMMANDS.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/OFFLINE_RL_COMMANDS.md) for the full hybrid command flow.
 - Read [PPO_IQL_EXECUTION_CHECKLIST.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/PPO_IQL_EXECUTION_CHECKLIST.md) for the shortest execution checklist.

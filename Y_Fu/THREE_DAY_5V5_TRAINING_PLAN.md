@@ -58,6 +58,24 @@ The GRF `5_vs_5` scenario defines each goalkeeper as `controllable=False`, so th
 
 So for this scenario, controlling 4 players is the intended setup.
 
+## Accounting Rule
+
+The PPO trainer uses `total_timesteps` as `agent steps`.
+
+For curriculum budgeting, keep both units in mind:
+
+- `env steps`: one simulator transition
+- `agent steps`: `env_steps * num_controlled_players`
+
+Approximate conversion:
+
+- `academy_run_to_score_with_keeper`: `1 env step = 1 agent step`
+- `academy_pass_and_shoot_with_keeper`: `1 env step = 2 agent steps`
+- `academy_3_vs_1_with_keeper`: `1 env step = 3 agent steps`
+- `5_vs_5`: `1 env step = 4 agent steps`
+
+Use `env steps` when comparing Academy budgets across stages.
+
 ## Training Philosophy
 
 ### Run completion is not stage success
@@ -113,7 +131,7 @@ Use this when:
 
 Recommended total scale:
 
-- academy warm-up: `1M ~ 2M agent steps`
+- academy warm-up: `250k ~ 450k env steps`
 - `five_vs_five`: `5M ~ 10M agent steps`
 
 ### One-Day Profile
@@ -125,7 +143,7 @@ Use this when:
 
 Recommended total scale:
 
-- academy warm-up: `1M ~ 3M agent steps`
+- academy warm-up: `500k ~ 900k env steps`
 - `five_vs_five`: `10M ~ 20M agent steps`
 
 ### Two-To-Three-Day Profile
@@ -137,7 +155,7 @@ Use this when:
 
 Recommended total scale:
 
-- academy warm-up: keep total at `1M ~ 3M agent steps`
+- academy warm-up: keep total at `700k ~ 1.4M env steps`
 - `five_vs_five` main training: increase to `20M ~ 50M agent steps`
 
 With the observed throughput range of roughly `1500 ~ 1800 samples/sec`:
@@ -189,6 +207,12 @@ Evaluation recommendation:
 Pass gate:
 
 - scored-episode ratio `>= 0.80`
+- `avg_score_reward >= 0.80`
+
+Video gate:
+
+- direct goal-oriented carry is repeatable
+- obvious finish chances are usually converted
 
 ### Stage 2: `academy_pass_and_shoot_with_keeper`
 
@@ -200,6 +224,8 @@ Evaluation recommendation:
 Pass gate:
 
 - scored-episode ratio `>= 0.60`
+- `avg_score_reward >= 0.60`
+- `win_rate >= 0.60`
 
 Important note:
 
@@ -215,6 +241,12 @@ Evaluation recommendation:
 Pass gate:
 
 - scored-episode ratio `>= 0.55`
+- `avg_score_reward >= 0.55`
+
+Video gate:
+
+- the extra attacker is used meaningfully
+- blocked first lanes do not always kill the whole attack
 
 ### Stage 4: `five_vs_five`
 
@@ -224,8 +256,13 @@ Evaluation recommendation:
 
 Pass gate:
 
-- `win_rate >= 0.35`
-- `avg_goal_diff >= -0.10`
+- `win_rate >= 0.20`
+- `avg_goal_diff >= -0.30`
+
+Behavior gate:
+
+- passing survives transfer at least occasionally
+- shot creation is visibly cleaner than scratch PPO at the same early budget
 
 ### Stage 5: `five_vs_five`
 
@@ -293,7 +330,7 @@ Purpose:
 Configuration:
 
 - preset: `academy_run_to_score_with_keeper`
-- `num_envs=8`
+- `num_envs=6`
 - `rollout_steps=128`
 - `total_timesteps=300_000`
 - `save_interval=5`
@@ -305,7 +342,7 @@ Run command:
 ```bash
 .venv_yfu_grf_sys/bin/python Y_Fu/train.py \
   --preset academy_run_to_score_with_keeper \
-  --num-envs 8 \
+  --num-envs 6 \
   --rollout-steps 128 \
   --total-timesteps 300000 \
   --save-interval 5 \
@@ -324,26 +361,25 @@ Purpose:
 Configuration:
 
 - preset: `academy_pass_and_shoot_with_keeper`
-- `num_envs=8`
+- `num_envs=6`
 - `rollout_steps=192`
 - `total_timesteps=800_000`
 - `save_interval=5`
 - `update_epochs=4`
 - `num_minibatches=1`
-- `init_checkpoint=Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/latest.pt`
+- continue from the best nearby checkpoint only if it is clearly better than a fresh restart
 
 Run command:
 
 ```bash
 .venv_yfu_grf_sys/bin/python Y_Fu/train.py \
   --preset academy_pass_and_shoot_with_keeper \
-  --num-envs 8 \
+  --num-envs 6 \
   --rollout-steps 192 \
   --total-timesteps 800000 \
   --save-interval 5 \
   --update-epochs 4 \
   --num-minibatches 1 \
-  --init-checkpoint Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/latest.pt \
   --seed 42
 ```
 
@@ -358,8 +394,8 @@ Configuration:
 
 - preset: `academy_3_vs_1_with_keeper`
 - `num_envs=6`
-- `rollout_steps=192`
-- `total_timesteps=1_200_000`
+- `rollout_steps=256`
+- `total_timesteps=1_500_000`
 - `save_interval=5`
 - `update_epochs=4`
 - `num_minibatches=1`
@@ -370,27 +406,27 @@ Run command:
 .venv_yfu_grf_sys/bin/python Y_Fu/train.py \
   --preset academy_3_vs_1_with_keeper \
   --num-envs 6 \
-  --rollout-steps 192 \
-  --total-timesteps 1200000 \
+  --rollout-steps 256 \
+  --total-timesteps 1500000 \
   --save-interval 5 \
   --update-epochs 4 \
   --num-minibatches 1 \
   --seed 42
 ```
 
-### Stage 4: Main 5v5 Training Block 1
+### Stage 4: Early 5v5 Transfer Validation
 
 Purpose:
 
-- shift most of the compute budget onto the real target
-- start learning robust `5_vs_5` play instead of isolated Academy skills
+- verify that the Academy primitive survives contact with live `5_vs_5`
+- avoid spending a long `5_vs_5` budget on a weak warm start
 
 Configuration:
 
 - preset: `five_vs_five`
 - `num_envs=6`
 - `rollout_steps=256`
-- `total_timesteps=10_000_000`
+- `total_timesteps=1_000_000 ~ 2_000_000`
 - `save_interval=10`
 - `update_epochs=4`
 - `num_minibatches=1`
@@ -414,7 +450,7 @@ Run command template:
   --preset five_vs_five \
   --num-envs 6 \
   --rollout-steps 256 \
-  --total-timesteps 10000000 \
+  --total-timesteps 1000000 \
   --save-interval 10 \
   --update-epochs 4 \
   --num-minibatches 1 \
@@ -426,7 +462,7 @@ Run command template:
 
 Purpose:
 
-- continue `5_vs_5` optimization once the policy is no longer random
+- continue `5_vs_5` only after early transfer looks real
 - optionally increase collection throughput if the machine remains stable
 
 Configuration:
@@ -434,13 +470,14 @@ Configuration:
 - preset: `five_vs_five`
 - `num_envs=6`, then try `8` only if memory and stability remain acceptable
 - `rollout_steps=256` or `384`
-- `total_timesteps=10_000_000 ~ 40_000_000`
+- `total_timesteps=10_000_000 ~ 20_000_000`
 - `save_interval=10`
 - `update_epochs=4`
 - `num_minibatches=1`
 
 Recommended rule:
 
+- only enter this stage if Stage 4 already shows visible pass-and-shot transfer
 - if `num_envs=6` stays stable and CPU is still underused, test `num_envs=8`
 - if `num_envs=8` slows down sharply or becomes unstable, fall back to `6`
 

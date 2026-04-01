@@ -22,11 +22,14 @@ source football-master/football-env/bin/activate
 
 ## 1. Academy PPO Warm-Up
 
+Use Academy as a capped warm-up, not an open-ended compute sink.
+
 ### Stage A: `academy_pass_and_shoot_with_keeper`
 
 ```bash
 python3 Y_Fu/train.py \
   --preset academy_pass_and_shoot_with_keeper \
+  --total-timesteps 800000 \
   --device cpu
 ```
 
@@ -34,7 +37,7 @@ Evaluate the chosen checkpoint:
 
 ```bash
 python3 Y_Fu/evaluate.py \
-  --checkpoint Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/latest.pt \
+  --checkpoint <best_stage2_checkpoint> \
   --episodes 20 \
   --deterministic \
   --device cpu \
@@ -48,15 +51,16 @@ Start from the best `academy_pass_and_shoot_with_keeper` checkpoint:
 ```bash
 python3 Y_Fu/train.py \
   --preset academy_3_vs_1_with_keeper \
+  --total-timesteps 1500000 \
   --device cpu \
-  --init-checkpoint Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/latest.pt
+  --init-checkpoint <best_stage2_checkpoint>
 ```
 
 Evaluate the chosen checkpoint:
 
 ```bash
 python3 Y_Fu/evaluate.py \
-  --checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt \
+  --checkpoint <best_stage3_checkpoint> \
   --episodes 20 \
   --deterministic \
   --device cpu \
@@ -72,16 +76,26 @@ python3 Y_Fu/train.py \
   --preset five_vs_five \
   --device cpu \
   --total-timesteps 1000000 \
-  --init-checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt
+  --init-checkpoint <best_academy_checkpoint>
 ```
 
-Evaluate two candidate PPO checkpoints after the run:
+Continue the early transfer check to roughly `500k env steps`:
+
+```bash
+python3 Y_Fu/train.py \
+  --preset five_vs_five \
+  --device cpu \
+  --total-timesteps 2000000 \
+  --init-checkpoint <best_stage4_checkpoint>
+```
+
+Evaluate two candidate PPO checkpoints after the early transfer run:
 
 Best candidate:
 
 ```bash
 python3 Y_Fu/evaluate.py \
-  --checkpoint Y_Fu/checkpoints/five_vs_five/latest.pt \
+  --checkpoint <best_stage4_checkpoint> \
   --episodes 20 \
   --deterministic \
   --device cpu \
@@ -103,7 +117,7 @@ python3 Y_Fu/evaluate.py \
 
 Recommended pilot total:
 
-- `400K ~ 500K` env-steps
+- `300K ~ 500K` env-steps
 
 These pilot datasets are all `5_vs_5`. That is intentional.
 
@@ -407,3 +421,4 @@ python3 Y_Fu/evaluate.py \
 - Keep offline RL focused on `5_vs_5` unless you explicitly build task-conditioned multi-stage offline training.
 - Use `reward` first, not `score_reward`, because the collector now preserves the same shaping configuration as the source checkpoint.
 - Do not assume `latest.pt` is best. Check metrics and video.
+- Do not start full offline collection until the early `5_vs_5` transfer check looks real.

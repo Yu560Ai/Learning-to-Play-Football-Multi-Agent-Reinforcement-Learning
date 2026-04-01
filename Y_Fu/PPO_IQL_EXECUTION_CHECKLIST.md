@@ -16,6 +16,7 @@ Before leaving Academy, confirm:
 1. the policy visibly passes instead of only dribbling
 2. the receiver is used in attack
 3. the checkpoint is chosen by behavior and evaluation, not only by recency
+4. the stage passed inside a reasonable Academy budget, not only after endless warm-up
 
 If these are false:
 
@@ -28,6 +29,7 @@ Before starting offline RL, confirm:
 1. the model was initialized from the best Academy checkpoint
 2. the `5_vs_5` policy shows at least some pass-and-shoot transfer
 3. one best checkpoint and one weaker checkpoint are selected
+4. this check was done after roughly `250k ~ 500k env steps`
 
 If the `5_vs_5` PPO policy still looks fully primitive-free:
 

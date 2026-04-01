@@ -48,6 +48,11 @@ If a `5_vs_5` PPO phase is active:
 - finish it
 - choose one best checkpoint and one weaker checkpoint
 
+If Academy is the next active phase:
+
+- use the current Academy pass gates and hard-stop budgets
+- do not extend Academy indefinitely just because the run is stable
+
 Do not assume `latest.pt` is best.
 
 ### Step 2: Confirm Primitive Transfer In `5_vs_5`
@@ -58,6 +63,11 @@ Before offline RL, verify that the transferred `5_vs_5` PPO policy shows at leas
 - support movement
 - occasional shot creation
 
+This check should happen after the early `5_vs_5` transfer window:
+
+- roughly `250k ~ 500k env steps`
+- roughly `1M ~ 2M agent steps`
+
 If the `5_vs_5` PPO line still shows no meaningful primitive transfer, spend effort there first.
 
 Offline RL is much more useful once the dataset already contains some real football behavior.
@@ -66,7 +76,7 @@ Offline RL is much more useful once the dataset already contains some real footb
 
 Pilot target:
 
-- `400K ~ 500K` env-steps total
+- `300K ~ 500K` env-steps total
 
 Recommended sources:
 
@@ -77,6 +87,8 @@ Recommended sources:
 3. weaker PPO checkpoint
    - `epsilon = 0.05`
 4. random policy
+
+Do not start full offline collection before this pilot is healthy.
 
 Pilot purpose:
 

@@ -8,6 +8,7 @@ This file is the single place to review what has been done in the `Y_Fu/` traini
 
 Use this to understand the intended curriculum:
 
+- `academy_run_to_score_with_keeper`
 - `academy_pass_and_shoot_with_keeper`
 - `academy_3_vs_1_with_keeper`
 - `five_vs_five`
@@ -21,8 +22,15 @@ It explains:
 Also read:
 
 - [ACADEMY_TO_5V5_BOOTSTRAP_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/ACADEMY_TO_5V5_BOOTSTRAP_PLAN.md)
+- [THREE_DAY_5V5_TRAINING_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/THREE_DAY_5V5_TRAINING_PLAN.md)
 - [PPO_OFFLINE_RL_INTEGRATION_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/PPO_OFFLINE_RL_INTEGRATION_PLAN.md)
 - [TRAINING_FAILURE_ARCHIVE.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/TRAINING_FAILURE_ARCHIVE.md)
+
+The most important current interpretation is:
+
+- Academy budgets should be thought about in `env steps`
+- `academy_pass_and_shoot_with_keeper` is the main Academy stage
+- `5_vs_5` should first pass an early transfer check before getting the long budget or offline RL
 
 2. [multiagent_eval_report.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/reports/multiagent_eval_report.md)
 
@@ -99,7 +107,7 @@ If you want the shortest useful path, read in this order:
 
 The current training story is:
 
-- the roadmap is `2 -> 3 -> 5`
+- the roadmap is `1 -> 2 -> 3 -> 5`, but Stage 1 is intentionally short
 - `2_agents` did not show strong outcome improvement
 - `3_agents` showed a small positive signal
 - `five_vs_five` is the main target now

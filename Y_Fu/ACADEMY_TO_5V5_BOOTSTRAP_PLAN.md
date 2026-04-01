@@ -1,302 +1,444 @@
 # Academy-to-5v5 Bootstrap Plan
 
-## Core View
+## Goal
 
-The current evidence suggests that pure `5_vs_5` PPO is too hard as a from-scratch learning problem in this project.
+Use Academy as a controlled PPO curriculum for primitive acquisition, then hand the policy off into `5_vs_5` before Academy overfitting becomes the main behavior.
 
-Observed symptom:
+The purpose of Academy is not to "solve football".
 
-- after long `5_vs_5` training, the policy still does not reliably show basic attacking behavior such as simple passing, support movement, and easy shot creation
+Its purpose is to make sure the policy already knows at least some of:
 
-Interpretation:
+- ball-to-goal progression
+- simple pass release
+- receiving and finishing
+- one extra layer of support behavior
 
-- this is a primitive acquisition failure, not only a late-stage coordination failure
-- the agent is struggling to learn easy football actions inside a long-horizon multi-agent environment
-- therefore, a smaller teaching scenario is justified
+The final judgment still happens in `5_vs_5`.
 
-This makes the Academy stages useful again, but only in a specific role:
+## Core Claim
 
-- Academy is for teaching attacking primitives
-- `5_vs_5` is for learning transfer, transition behavior, spacing, and robust decision making
+The current evidence suggests that pure `5_vs_5` PPO from scratch is too hard in this repo for primitive acquisition.
 
-So the intended strategy is:
+The practical interpretation is:
 
-1. learn basic attack structure in Academy
-2. transfer the best Academy checkpoint into `5_vs_5`
-3. spend the larger training budget in `5_vs_5`
-4. judge success in `5_vs_5`, not in Academy
+- `5_vs_5` is asking PPO to learn too many things at once
+- Academy can reduce the exploration and credit-assignment burden
+- Academy should therefore be treated as a bootstrap stage
+- Academy should not absorb most of the total compute budget
 
-## Why This Approach Makes Sense
+So the intended line is:
 
-### Why `5_vs_5` from scratch is hard
+1. learn the primitive in Academy
+2. pick the best Academy checkpoint by behavior, not by recency
+3. transfer it into `5_vs_5`
+4. spend the main training budget in `5_vs_5`
 
-In full `5_vs_5`, PPO must solve several problems at once:
+## One Important Accounting Rule
 
-- ball control
-- movement and orientation
-- discovering passing
-- discovering shooting
-- learning support runs
-- learning spacing
-- learning transition defense
-- coordinating multiple controlled players
+This repo's PPO trainer uses `total_timesteps` as `agent steps`, not raw environment transitions.
 
-That is a high exploration burden with weak and delayed credit assignment.
+For this plan, use both units:
 
-If the policy cannot even learn easy passes in `5_vs_5`, then expecting the same setup to discover clean multi-agent attacking structure by itself is too optimistic.
+- `env steps`: one simulator transition
+- `agent steps`: `env_steps * num_controlled_players`
 
-### Why Academy can help
+Approximate conversion:
 
-Academy tasks make the learning problem much easier:
+- `academy_run_to_score_with_keeper`: `1 env step = 1 agent step`
+- `academy_pass_and_shoot_with_keeper`: `1 env step = 2 agent steps`
+- `academy_3_vs_1_with_keeper`: `1 env step = 3 agent steps`
+- `5_vs_5`: `1 env step = 4 agent steps`
 
-- shorter episodes
-- denser success signals
-- clearer attacking geometry
-- less irrelevant state variation
-- more repeated exposure to pass-and-finish situations
+This matters because curriculum budgets should be compared mostly in `env steps`, not only in raw `total_timesteps`.
 
-This is exactly the kind of setting that can teach:
-
-- when to release the ball
-- how to support the ball carrier
-- how to face the goal before shooting
-- how to convert numerical advantage into a shot
-
-### Why Academy alone is not enough
-
-Academy scenarios are heavily scripted and much narrower than `5_vs_5`.
-
-Risks:
-
-- overfitting to one attack pattern
-- learning to pass only in a fixed local geometry
-- weak transition behavior after losing the ball
-- poor defensive recovery
-- poor use of open space outside the scenario template
-
-So Academy should be treated as a bootstrapping stage, not the main destination.
-
-## Training Principle
-
-Use Academy to solve primitive behavior, then use `5_vs_5` to generalize and stabilize it.
-
-Practical implication:
-
-- do not abandon Academy if `5_vs_5` still looks primitive
-- do not spend most total compute in Academy after the primitive is clearly present
-
-The correct balance is:
-
-- enough Academy to create a real passing-and-shooting prior
-- most total steps in `5_vs_5`
-
-## Proposed Curriculum
+## What Academy Should Teach
 
 ### Stage 1: `academy_run_to_score_with_keeper`
 
-Purpose:
+This stage should teach:
 
-- teach direct ball progression
-- teach goal-oriented movement
-- teach finishing against the keeper
+- direct attack intent
+- decisive ball carry toward goal
+- finishing against the keeper
 
-Desired behavior:
+This is not mainly a passing stage.
 
-- agent moves decisively toward goal
-- agent can beat the keeper in simple 1-player situations
+It is a quick way to make sure the encoder and PPO loop learn basic attack geometry.
 
 ### Stage 2: `academy_pass_and_shoot_with_keeper`
 
-Purpose:
+This stage should teach:
 
-- teach the most basic pass-then-finish pattern
-- teach that passing can be better than dribbling
+- passing as a useful action, not just dribbling
+- support positioning for the receiver
+- pass-then-finish structure
 
-Desired behavior:
-
-- ball carrier passes instead of forcing bad dribbles
-- receiver positions to finish
-- policy can convert obvious 2-player attacks reliably
+This is the most important Academy stage for the current branch.
 
 ### Stage 3: `academy_3_vs_1_with_keeper`
 
-Purpose:
+This stage should teach:
 
-- teach simple numerical-advantage attack structure
-- teach one more layer of support and decision making
+- using numerical advantage
+- not forcing the first lane blindly
+- one more layer of simple support and decision making
 
-Desired behavior:
+This is the last Academy step before `5_vs_5`.
 
-- policy uses the extra attacker instead of tunnel-vision dribbling
-- attack can adapt when the first lane is blocked
-- ball circulation leads to a shot with reasonable consistency
+## Budget Recommendation In `env steps`
 
-### Stage 4: `5_vs_5`
+The current default presets are too short to be treated as a serious curriculum budget.
 
-Purpose:
+Use the presets as starting points, but expect to extend them.
 
-- transfer Academy primitives into a more realistic game
-- learn spacing, recovery, transitions, and more robust decision making
+### Recommended budget table
 
-Desired behavior:
+| Stage | Controlled Players | Pilot Budget | Normal Budget | Hard Stop |
+|---|---:|---:|---:|---:|
+| `academy_run_to_score_with_keeper` | 1 | `150k env steps` | `250k ~ 400k env steps` | `600k env steps` |
+| `academy_pass_and_shoot_with_keeper` | 2 | `150k env steps` | `300k ~ 600k env steps` | `900k env steps` |
+| `academy_3_vs_1_with_keeper` | 3 | `150k env steps` | `300k ~ 700k env steps` | `1.0M env steps` |
 
-- obvious pass opportunities are used
-- teammates spread instead of clustering
-- attack continues after the first action instead of collapsing
-- policy begins to create shots from live play
+Equivalent `total_timesteps` to pass into PPO:
 
-## Gating Rule
+- Stage 1: `150k ~ 600k`
+- Stage 2: `300k ~ 1.8M`
+- Stage 3: `450k ~ 3.0M`
 
-Do not leave an Academy stage only because training finished.
+Interpretation:
 
-Leave a stage only if the behavior is visibly present and the evaluation threshold is acceptable.
+- pilot budget: enough to see whether the stage is alive
+- normal budget: the range where the stage should usually pass if the reward is right
+- hard stop: if it still looks bad here, do not just keep training blindly
 
-Suggested practical gate:
+## Budget-To-Command Conversion
 
-- keep stage-specific evaluation thresholds
-- also inspect videos for qualitative behavior
-- only transfer checkpoints that clearly show the target primitive
+Use this conversion when launching runs:
+
+- Stage 1 target `250k env steps` -> `--total-timesteps 250000`
+- Stage 2 target `400k env steps` -> `--total-timesteps 800000`
+- Stage 3 target `500k env steps` -> `--total-timesteps 1500000`
+
+Concrete examples:
+
+```bash
+python -u Y_Fu/train.py --preset academy_run_to_score_with_keeper --total-timesteps 250000 --device cpu
+python -u Y_Fu/train.py --preset academy_pass_and_shoot_with_keeper --total-timesteps 800000 --device cpu
+python -u Y_Fu/train.py --preset academy_3_vs_1_with_keeper --total-timesteps 1500000 --device cpu
+```
+
+If Stage 2 or Stage 3 is continuing from an earlier checkpoint, keep the same stage preset and set:
+
+- `--init-checkpoint <best_checkpoint>`
+
+The main rule is:
+
+- pick the budget in `env steps`
+- convert it to `total_timesteps` using the controlled-player count
+- evaluate multiple checkpoints inside the run instead of trusting the final one automatically
+
+## Training Shape
+
+Use Academy as short, strict, and checkpoint-driven PPO training.
+
+Recommended operational shape:
+
+1. start from the current preset
+2. raise `total_timesteps` to match the target `env step` budget
+3. evaluate every named checkpoint block
+4. stop early once the stage clearly passes
+5. if the stage is still weak near the hard stop, change reward or handoff logic rather than only adding more steps
+
+For stability, keep the basic PPO shape close to the current implementation:
+
+- `representation=extracted`
+- `model_type=cnn`
+- `feature_dim=256`
+- `update_epochs=4` for multi-player Academy
+- `num_minibatches=4`
+- `learning_rate=3e-4`
+- moderate rollout sizes: `128 / 192 / 256`
+
+Recommended practical detail:
+
+- use `num_envs=4 ~ 6` for Academy
+- keep `save_interval` frequent enough that you can inspect several checkpoints inside one run
+
+## Reward Design For Academy
+
+The reward in Academy should be shaped toward short attacking sequences, not generic possession.
+
+That means the main reward logic is:
+
+- passing should be encouraged
+- pass progress should matter
+- shots should be encouraged
+- turnovers should hurt
+- passive possession should stay small
+
+### Stage 1 reward rule
+
+For `academy_run_to_score_with_keeper`, keep reward simple.
+
+Default recommendation:
+
+- use built-in `scoring,checkpoints`
+- do not add heavy dense shaping unless the stage is clearly stuck
+
+Reason:
+
+- this stage is mostly about direct carry-and-finish behavior
+- too much extra shaping here is unnecessary and may bias behavior in a way that does not help later stages
+
+### Stage 2 reward rule
+
+For `academy_pass_and_shoot_with_keeper`, the reward should explicitly teach:
+
+- pass completion
+- forward pass usefulness
+- shot creation
+
+The current preset is a reasonable starting point:
+
+- `pass_success_reward = 0.08`
+- `pass_failure_penalty = 0.04`
+- `pass_progress_reward_scale = 0.08`
+- `shot_attempt_reward = 0.03`
+- `final_third_entry_reward = 0.04`
+- `own_half_turnover_penalty = 0.02`
+
+Background shaping should stay small:
+
+- `attacking_possession_reward = 0.002`
+- `possession_retention_reward = 0.001`
+
+Practical rule:
+
+- if the policy keeps the ball but still does not score, reduce passive possession terms before increasing pass reward further
+- if the policy shoots too little, raise `shot_attempt_reward` slightly before making pass reward much larger
+
+### Stage 3 reward rule
+
+For `academy_3_vs_1_with_keeper`, keep the same reward family, but the interpretation changes:
+
+- pass reward should still exist
+- shot creation still matters
+- blind possession should not dominate
+- the extra attacker should be used as a real second option
+
+The current preset is again a reasonable starting point:
+
+- `pass_success_reward = 0.08`
+- `pass_failure_penalty = 0.05`
+- `pass_progress_reward_scale = 0.08`
+- `shot_attempt_reward = 0.03`
+- `final_third_entry_reward = 0.04`
+- `own_half_turnover_penalty = 0.02`
+
+Practical rule:
+
+- if Stage 3 looks like endless safe circulation or weak dribbling, reduce possession-style bonuses before adding more compute
+
+## Completion Standards
+
+Training completion is not task completion.
+
+Each Academy stage needs both:
+
+- metric threshold
+- qualitative behavior check
+
+### Stage 1 pass standard
+
+Use:
+
+- `20` deterministic episodes across multiple seeds
+
+Pass standard:
+
+- scored-episode ratio `>= 0.80`
+- `avg_score_reward >= 0.80`
+
+Video standard:
+
+- the agent moves directly to goal with little hesitation
+- obvious finishing chances are usually converted
+
+### Stage 2 pass standard
+
+Use:
+
+- `20` deterministic episodes across multiple seeds, or
+- `50` episodes in a single-seed sweep for checkpoint comparison
+
+Pass standard:
+
+- scored-episode ratio `>= 0.60`
+- `avg_score_reward >= 0.60`
+- `win_rate >= 0.60`
+
+Video standard:
+
+- pass-to-shot structure appears repeatedly
+- the ball carrier does not force dribble-only behavior on obvious 2-player attacks
+- the receiver is visibly part of the attack, not just a bystander
+
+### Stage 3 pass standard
+
+Use:
+
+- `20` deterministic episodes across multiple seeds
+
+Pass standard:
+
+- scored-episode ratio `>= 0.55`
+- `avg_score_reward >= 0.55`
+
+Video standard:
+
+- the policy uses the extra attacker in a meaningful fraction of attacks
+- the first blocked lane does not always kill the whole play
+- the attack ends in shots often enough that it looks purposeful rather than random
+
+### Failure standard
+
+Treat an Academy stage as failed for the current configuration if one of these is true:
+
+- it reaches the hard-stop budget and still does not clear the pass gate
+- return increases but scoring behavior still looks weak
+- later checkpoints look worse than earlier ones and nothing transfers cleanly
+
+That is the point to adjust:
+
+- reward shaping
+- checkpoint selection
+- or the transfer plan
+
+not just the budget.
+
+## Handoff Rule Into `5_vs_5`
+
+The transfer checkpoint should be:
+
+1. best passed Stage 3 checkpoint if Stage 3 really passed
+2. otherwise best passed Stage 2 checkpoint
+3. otherwise best Stage 2 checkpoint with the cleanest visible pass-to-shot behavior
+4. otherwise best Stage 1 checkpoint only as a weak fallback
 
 Important:
 
-- "run completed" is not the same as "stage passed"
-- the handoff checkpoint should be chosen for behavior quality, not just latest timestamp
+- do not transfer `latest.pt` automatically
+- do not transfer the highest-return checkpoint automatically
+- choose the checkpoint that looks most likely to survive contact with `5_vs_5`
 
-## What To Transfer
+## How Academy Reward Should Extend Into `5_vs_5`
 
-When moving into `5_vs_5`, transfer the best Academy checkpoint, not automatically `latest.pt`.
+Do not copy the Academy objective into `5_vs_5` unchanged.
 
-Checkpoint selection should favor:
+The role of Academy reward is:
 
-- visible passing behavior
-- stable shot creation
-- less random dribbling
-- repeatable attack structure across several episodes
+- teach the primitive
 
-If an earlier checkpoint shows cleaner football than a later one, use the earlier checkpoint.
+The role of `5_vs_5` reward is:
 
-## Budget Recommendation
+- preserve the primitive while making it useful in a longer and noisier game
 
-The total budget should still favor `5_vs_5`.
+So the transition rule should be:
 
-Recommended allocation shape:
+- keep pass and shot encouragement in `5_vs_5`
+- reduce the relative weight of easy possession-style bonuses
+- make sure `5_vs_5` shaping does not reward empty ball movement more than actual attack construction
 
-- short-to-moderate Academy warm-up
-- large `5_vs_5` block after transfer
+This is already consistent with the current `five_vs_five` preset, where:
 
-In other words:
+- pass reward is smaller than in Academy
+- shot and final-third incentives are still present
+- passive possession terms are reduced
 
-- Academy teaches the skill
-- `5_vs_5` teaches where and when to use the skill
+That is the correct direction.
 
-## What To Measure
+## `5_vs_5` Transfer Plan
 
-Win rate alone is not enough for early curriculum decisions.
+The first question after Academy is not "did we win `5_vs_5` already?"
 
-Track these signals, especially in `5_vs_5`:
+The first question is:
 
-- completed pass count
-- pass completion rate
-- shots per episode
-- goals per episode
-- final-third entries
-- possession retention after receiving the ball
-- qualitative video evidence of support runs
+- did the Academy primitive survive transfer?
 
-These metrics matter because the near-term question is not only "does the team win?" but also:
+### Transfer phase A: early check
 
-- did the policy actually learn to pass?
-- did Academy transfer into live `5_vs_5` behavior?
+Start `5_vs_5` from the best Academy checkpoint and inspect the first:
 
-## Main Risks
+- `250k ~ 500k env steps`
+- equivalent to `1M ~ 2M agent steps` in `5_vs_5`
 
-### Risk 1: Overtraining in Academy
+What to check:
 
-If Academy training is too long, the policy may become specialized to scripted situations and transfer poorly.
+- does passing still appear at all
+- does the team create more shots than scratch PPO
+- do attacks collapse immediately into dribble chaos
+- are matches still all full-length low-quality losses
 
-Response:
+### Transfer phase B: direct baseline comparison
 
-- use Academy as a warm-up, not the main compute sink
-- move to `5_vs_5` once the primitive is real
+Run a small comparison:
 
-### Risk 2: False positive from one good video
+1. `5_vs_5` from best Academy checkpoint
+2. `5_vs_5` from scratch
 
-A single good episode can be misleading.
+Compare them at matched early budgets:
 
-Response:
+- `250k env steps`
+- `500k env steps`
 
-- evaluate over multiple seeds
-- compare several checkpoints
-- use both metrics and video
+Preferred signals:
 
-### Risk 3: Transfer failure even after Academy success
+- `pass_rate`
+- `shot_rate`
+- video evidence of support behavior
+- fewer degenerate movement patterns
 
-The policy may learn passing in Academy but fail to use it in `5_vs_5`.
+If the transferred run is clearly cleaner early, Academy is earning its place.
 
-Response:
+### Transfer phase C: main `5_vs_5` budget
 
-- keep measuring pass-related metrics in `5_vs_5`
-- revise `5_vs_5` shaping if the transferred policy immediately forgets passing
-- compare transfer against `5_vs_5` from scratch, not only against itself
+Only after the transfer looks real should the policy receive the long `5_vs_5` budget:
 
-## Concrete Experiment Plan
+- `2.5M ~ 5M env steps`
+- equivalent to `10M ~ 20M agent steps`
 
-### Experiment A: Establish the primitive
+That keeps the main compute where it belongs.
 
-Goal:
+## What Counts As Academy Success
 
-- produce one checkpoint from Academy that clearly demonstrates passing and shot creation
+Academy is worth keeping only if it improves at least one real `5_vs_5` outcome:
 
-Steps:
+- earlier appearance of passing
+- higher shot creation in early `5_vs_5`
+- cleaner attack structure in video
+- better sample efficiency than scratch PPO
 
-1. train `academy_pass_and_shoot_with_keeper`
-2. evaluate several checkpoints, not only `latest.pt`
-3. continue with `academy_3_vs_1_with_keeper`
-4. again select the best checkpoint by behavior and evaluation, not by recency
+Academy is not justified if:
 
-### Experiment B: Test transfer into `5_vs_5`
+- it only produces nice scripted videos inside Academy
+- transfer to `5_vs_5` is weak
+- the same `5_vs_5` behavior can be reached just as fast from scratch
 
-Goal:
+## Recommended Current Default
 
-- determine whether Academy improves early `5_vs_5` behavior relative to scratch PPO
+For the current repo state, the most reasonable Academy line is:
 
-Steps:
-
-1. initialize one `5_vs_5` run from the best Academy checkpoint
-2. initialize another `5_vs_5` run from scratch
-3. compare them at the same step budgets
-4. inspect pass count, pass completion, shot creation, and video behavior
-
-Success condition:
-
-- transferred run shows clearer passing and better attack construction early in training
-
-### Experiment C: Decide whether Academy is worth keeping
-
-Keep Academy in the pipeline if it does at least one of these:
-
-- improves early `5_vs_5` passing behavior
-- improves shot creation in `5_vs_5`
-- improves sample efficiency relative to scratch PPO
-
-Reduce or remove Academy if:
-
-- it does not improve `5_vs_5` behavior
-- it only produces scripted-looking patterns with no transfer
-- it consumes too much budget compared with direct `5_vs_5` training
+1. `academy_run_to_score_with_keeper` for a short budget only
+2. make `academy_pass_and_shoot_with_keeper` the main Academy stage
+3. use `academy_3_vs_1_with_keeper` as the last transfer filter, not as an endless compute sink
+4. transfer into `5_vs_5` as soon as Stage 2 or Stage 3 shows real repeatable pass-to-shot behavior
 
 ## Bottom Line
 
-The current working hypothesis should be:
+The compact rule is:
 
-- `5_vs_5` from scratch is too difficult for learning basic football primitives in the current PPO setup
-- Academy is likely useful for bootstrapping those primitives
-- Academy is not the final objective and should not dominate total training time
-- the real test is whether Academy creates better `5_vs_5` passing and attack behavior
-
-This is the practical stance:
-
-- keep Academy
-- use it deliberately
-- transfer early enough
-- evaluate success in `5_vs_5`
+- Academy should teach the primitive
+- Academy should have a real but capped `env step` budget
+- Academy completion must be judged by both metrics and video
+- the checkpoint handoff must be deliberate
+- real success is whether the primitive survives and helps in `5_vs_5`

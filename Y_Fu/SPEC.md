@@ -79,6 +79,13 @@ Use Academy to teach:
 
 Do not spend most total compute there once the primitive is real.
 
+Operational rule:
+
+- budget Academy mainly in `env steps`
+- keep Stage 1 short
+- let Stage 2 absorb most Academy compute
+- use Stage 3 as a transfer filter, not as an endless sink
+
 ### 3. `5_vs_5` is for transfer and realism
 
 Use `5_vs_5` to learn:
@@ -110,7 +117,9 @@ Train and evaluate Academy stages until passing and finishing behavior is visibl
 
 ### Phase B: `5_vs_5` PPO
 
-Initialize from the best Academy checkpoint and train the main `5_vs_5` line.
+Initialize from the best Academy checkpoint and first run an early transfer check in `5_vs_5`.
+
+Only after passing that early transfer check should the policy receive the main long `5_vs_5` budget or feed offline RL.
 
 ### Phase C: `5_vs_5` Offline RL
 

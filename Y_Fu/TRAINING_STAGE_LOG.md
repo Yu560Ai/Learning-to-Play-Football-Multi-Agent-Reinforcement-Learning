@@ -50,6 +50,28 @@ Operationally, this means:
 - evaluate transfer quality carefully
 - treat offline RL as a later `five_vs_five` refinement stage, not as a replacement for curriculum
 
+## Current Budget Reference
+
+Use `env steps` for curriculum budgeting and `agent steps` for interpreting PPO config.
+
+Approximate conversion:
+
+- Stage 1 `academy_run_to_score_with_keeper`: `1 env step = 1 agent step`
+- Stage 2 `academy_pass_and_shoot_with_keeper`: `1 env step = 2 agent steps`
+- Stage 3 `academy_3_vs_1_with_keeper`: `1 env step = 3 agent steps`
+- Stage 4 and Stage 5 `five_vs_five`: `1 env step = 4 agent steps`
+
+Current recommended Academy budget ranges:
+
+- Stage 1 normal range: `250k ~ 400k env steps`
+- Stage 2 normal range: `300k ~ 600k env steps`
+- Stage 3 normal range: `300k ~ 700k env steps`
+
+Current transfer check for `five_vs_five`:
+
+- early validation at `250k ~ 500k env steps`
+- only then commit the long `10M ~ 20M` agent-step block
+
 ## Status Definitions
 
 This log uses two separate judgments for each stage.
@@ -127,6 +149,11 @@ Support metrics:
 - `avg_score_reward >= 0.60`
 - `win_rate >= 0.60`
 
+Video gate:
+
+- pass-to-shot structure appears repeatedly
+- the receiver is visibly involved in finishing
+
 ### Stage 1: `academy_run_to_score_with_keeper`
 
 Preferred evaluation:
@@ -140,6 +167,10 @@ Pass target:
 Support metrics:
 
 - `avg_score_reward >= 0.80`
+
+Video gate:
+
+- direct carry and finishing look deliberate rather than hesitant
 
 ### Stage 3: `academy_3_vs_1_with_keeper`
 
@@ -155,6 +186,11 @@ Support metrics:
 
 - `avg_score_reward >= 0.55`
 
+Video gate:
+
+- the extra attacker is used meaningfully
+- attacks do not always die on the first blocked lane
+
 ### Stage 4: `five_vs_five`
 
 Preferred evaluation:
@@ -163,8 +199,13 @@ Preferred evaluation:
 
 Pass target:
 
-- `win_rate >= 0.35`
-- `avg_goal_diff >= -0.10`
+- `win_rate >= 0.20`
+- `avg_goal_diff >= -0.30`
+
+Support gate:
+
+- passing survives transfer at least occasionally
+- shot creation looks cleaner than scratch PPO at the same early budget
 
 ### Stage 5: `five_vs_five`
 
@@ -185,6 +226,7 @@ Pass target:
 - if a run finishes without passing, either extend the budget, tune the setup, or treat it as exploratory only
 - if Stage 2 finishes with non-monotonic checkpoint quality, select the transition checkpoint by evaluation, not by latest timestamp
 - the best current warm-up candidate from logged evaluations is `update_10.pt`, not `update_110.pt`
+- do not start offline RL from `five_vs_five` until early transfer has been checked at roughly `250k ~ 500k env steps`
 
 ## Historical Stage Records
 

@@ -102,6 +102,7 @@ Exit condition:
 
 - a checkpoint visibly shows passing and shot creation
 - the stage is not only "completed" but behaviorally convincing
+- the stage budget is still inside a reasonable Academy range rather than drifting into endless warm-up
 
 ## Phase B: `5_vs_5` PPO Transfer
 
@@ -116,9 +117,19 @@ Purpose:
 
 This stage should still receive the largest online training budget.
 
+Important operational split:
+
+- first run an early transfer check at roughly `250k ~ 500k env steps`
+- only commit the full `5_vs_5` budget after transfer is visibly real
+
 ## Phase C: `5_vs_5` Offline Dataset Collection
 
 After a meaningful `5_vs_5` PPO run exists, collect offline data from `5_vs_5`, not from a mixed Academy plus `5_vs_5` soup.
+
+Meaningful here should mean:
+
+- the policy already survived the early transfer check
+- passing and shot creation are at least somewhat visible in live `5_vs_5`
 
 Recommended sources:
 
