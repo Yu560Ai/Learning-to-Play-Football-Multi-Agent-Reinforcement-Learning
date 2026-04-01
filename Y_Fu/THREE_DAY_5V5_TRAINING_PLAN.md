@@ -10,12 +10,25 @@ This plan is intentionally centered on:
 - stable PPO updates
 - Academy warm-up only as preparation
 - spending most of the compute budget on `5_vs_5`
+- using offline RL only after a meaningful `5_vs_5` PPO policy exists
 
 It is not centered on:
 
 - `11_vs_11` as the main target
 - immediate self-play
 - large algorithm refactors
+- mixing Academy and `5_vs_5` into one initial offline dataset
+
+## Current Working Recommendation
+
+The recommended hybrid order is:
+
+1. Academy PPO
+2. `5_vs_5` PPO
+3. `5_vs_5` offline RL
+4. PPO fine-tuning from IQL if IQL looks better
+
+This plan therefore treats offline RL as a later replay-and-refinement stage for `5_vs_5`, not as a replacement for Academy warm-up.
 
 ## Current Environment Setup
 
@@ -145,6 +158,7 @@ For the current project stage, use:
 
 - Academy warm-up as already planned
 - `five_vs_five` expanded to the Two-To-Three-Day profile
+- offline RL only after a meaningful `five_vs_five` PPO checkpoint exists
 
 That means the most useful expansion is not more Academy time, but a larger `five_vs_five` block.
 
@@ -224,7 +238,7 @@ Pass gate:
 - `win_rate >= 0.55`
 - `avg_goal_diff > 0.00`
 
-## 3-Day Schedule
+## 3-Day Hybrid Schedule
 
 The machine budget discussed during planning:
 
@@ -430,6 +444,49 @@ Recommended rule:
 - if `num_envs=6` stays stable and CPU is still underused, test `num_envs=8`
 - if `num_envs=8` slows down sharply or becomes unstable, fall back to `6`
 
+### Stage 6: `5_vs_5` Offline Pilot
+
+Purpose:
+
+- collect replay data from the stronger `5_vs_5` PPO line
+- validate the IQL pipeline on task-matched data
+
+Data rule:
+
+- use only `5_vs_5` datasets in the initial IQL run
+- do not mix Academy and `5_vs_5` datasets here
+
+Recommended sources:
+
+- best `5_vs_5` PPO checkpoint
+- exploratory sampling from the same checkpoint
+- one weaker `5_vs_5` PPO checkpoint
+- optional random baseline data
+
+### Stage 7: `5_vs_5` IQL
+
+Purpose:
+
+- reuse valuable `5_vs_5` transitions more efficiently
+- improve action quality from mixed-quality `5_vs_5` trajectories
+
+Operational rule:
+
+- start with a pilot IQL run
+- only scale to a full IQL run if the pilot is healthy
+
+### Stage 8: PPO From IQL
+
+Purpose:
+
+- return to online adaptation after replay-based improvement
+
+Use this stage only if:
+
+- IQL videos look cleaner than PPO
+- passing and shot creation improve
+- `5_vs_5` evaluation is at least competitive with the PPO baseline
+
 ## Practical Decision Rules
 
 ### If CPU looks idle
@@ -522,3 +579,4 @@ The immediate operational rule is:
 - keep training and evaluating the current warm-up stages
 - do not mark a stage as solved unless it clears its pass gate
 - only enter `five_vs_five` as the main handoff once a warm-up checkpoint actually passes, or once we explicitly choose to proceed despite a failed gate
+- once a meaningful `five_vs_five` PPO checkpoint exists, shift the next iteration to `five_vs_five` offline RL rather than adding more Academy-only budget

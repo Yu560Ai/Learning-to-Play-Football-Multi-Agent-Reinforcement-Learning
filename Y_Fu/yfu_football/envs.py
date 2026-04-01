@@ -419,6 +419,9 @@ def _auto_reset_if_done(
     score = env.get_score()
     if score is not None:
         info_dict["final_score"] = score
+    # Preserve the terminal post-step observation before auto-reset so
+    # collection code can distinguish true terminals from time-limit truncation.
+    info_dict["terminal_observation"] = np.asarray(observation, dtype=np.float32).copy()
 
     reset_observation = env.reset()
     info_dict["auto_reset"] = True

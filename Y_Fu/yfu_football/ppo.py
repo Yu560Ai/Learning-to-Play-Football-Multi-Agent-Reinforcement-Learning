@@ -16,6 +16,37 @@ from torch import nn
 from .envs import FootballVecEnv, RewardShapingConfig
 from .model import MODEL_TYPES, ActorCritic
 
+ACTION_NAMES = {
+    0: "idle",
+    1: "left",
+    2: "top_left",
+    3: "top",
+    4: "top_right",
+    5: "right",
+    6: "bottom_right",
+    7: "bottom",
+    8: "bottom_left",
+    9: "long_pass",
+    10: "high_pass",
+    11: "short_pass",
+    12: "shot",
+    13: "sprint",
+    14: "release_direction",
+    15: "release_sprint",
+    16: "sliding",
+    17: "dribble",
+    18: "release_dribble",
+}
+DIRECTIONAL_ACTIONS = {1, 2, 3, 4, 5, 6, 7, 8}
+RIGHTWARD_ACTIONS = {4, 5, 6}
+LEFTWARD_ACTIONS = {1, 2, 8}
+UPWARD_ACTIONS = {2, 3, 4}
+DOWNWARD_ACTIONS = {6, 7, 8}
+PASS_ACTIONS = {9, 10, 11}
+SHOT_ACTIONS = {12}
+BALL_SKILL_ACTIONS = {9, 10, 11, 12, 17}
+IDLE_ACTIONS = {0}
+
 
 @dataclass
 class PPOConfig:
@@ -26,6 +57,7 @@ class PPOConfig:
     channel_dimensions: tuple[int, int] = (42, 42)
     model_type: str = "auto"
     feature_dim: int = 256
+    use_player_id: bool = False
     total_timesteps: int = 500_000
     rollout_steps: int = 256
     num_envs: int = 1
@@ -176,17 +208,20 @@ PRESET_OVERRIDES: dict[str, dict[str, Any]] = {
         "num_minibatches": 4,
         "learning_rate": 2.5e-4,
         "hidden_sizes": (256, 256),
-        "pass_success_reward": 0.06,
-        "pass_failure_penalty": 0.05,
+        # Bias dense rewards toward creating and finishing attacks, not just
+        # safe possession. This is the first reward-only revision after the
+        # 10M-step five-v-five failure checkpoint.
+        "pass_success_reward": 0.03,
+        "pass_failure_penalty": 0.025,
         "pass_progress_reward_scale": 0.06,
-        "shot_attempt_reward": 0.02,
-        "attacking_possession_reward": 0.001,
-        "final_third_entry_reward": 0.03,
-        "possession_retention_reward": 0.0005,
+        "shot_attempt_reward": 0.06,
+        "attacking_possession_reward": 0.0,
+        "final_third_entry_reward": 0.06,
+        "possession_retention_reward": 0.0,
         "possession_recovery_reward": 0.015,
         "defensive_third_recovery_reward": 0.025,
-        "opponent_attacking_possession_penalty": 0.001,
-        "own_half_turnover_penalty": 0.03,
+        "opponent_attacking_possession_penalty": 0.0,
+        "own_half_turnover_penalty": 0.015,
         "own_half_x_threshold": 0.0,
         "save_interval": 10,
         "save_dir": "Y_Fu/checkpoints/five_vs_five",
@@ -307,6 +342,77 @@ def _compute_gae(
     return advantages, returns
 
 
+def _safe_fraction(numerator: float, denominator: float) -> float:
+    if denominator <= 0.0:
+        return 0.0
+    return float(numerator / denominator)
+
+
+def _summarize_action_usage(action_buffer: np.ndarray, action_dim: int) -> dict[str, float | str]:
+    flat_actions = action_buffer.reshape(-1)
+    total_actions = int(flat_actions.size)
+    if total_actions == 0:
+        return {
+            "pass_rate": 0.0,
+            "shot_rate": 0.0,
+            "skill_rate": 0.0,
+            "idle_rate": 0.0,
+            "direction_rate": 0.0,
+            "right_bias": 0.0,
+            "left_bias": 0.0,
+            "vertical_bias": 0.0,
+            "top_actions": "n/a",
+        }
+
+    counts = np.bincount(flat_actions, minlength=action_dim)
+    directional_count = int(sum(counts[action] for action in DIRECTIONAL_ACTIONS if action < len(counts)))
+    right_count = int(sum(counts[action] for action in RIGHTWARD_ACTIONS if action < len(counts)))
+    left_count = int(sum(counts[action] for action in LEFTWARD_ACTIONS if action < len(counts)))
+    up_count = int(sum(counts[action] for action in UPWARD_ACTIONS if action < len(counts)))
+    down_count = int(sum(counts[action] for action in DOWNWARD_ACTIONS if action < len(counts)))
+    pass_count = int(sum(counts[action] for action in PASS_ACTIONS if action < len(counts)))
+    shot_count = int(sum(counts[action] for action in SHOT_ACTIONS if action < len(counts)))
+    skill_count = int(sum(counts[action] for action in BALL_SKILL_ACTIONS if action < len(counts)))
+    idle_count = int(sum(counts[action] for action in IDLE_ACTIONS if action < len(counts)))
+
+    ranked_actions = sorted(
+        ((action_id, int(count)) for action_id, count in enumerate(counts)),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    top_actions = []
+    for action_id, count in ranked_actions[:3]:
+        if count <= 0:
+            continue
+        action_name = ACTION_NAMES.get(action_id, str(action_id))
+        top_actions.append(f"{action_name}:{_safe_fraction(count, total_actions):.2f}")
+
+    return {
+        "pass_rate": _safe_fraction(pass_count, total_actions),
+        "shot_rate": _safe_fraction(shot_count, total_actions),
+        "skill_rate": _safe_fraction(skill_count, total_actions),
+        "idle_rate": _safe_fraction(idle_count, total_actions),
+        "direction_rate": _safe_fraction(directional_count, total_actions),
+        "right_bias": _safe_fraction(right_count, directional_count),
+        "left_bias": _safe_fraction(left_count, directional_count),
+        "vertical_bias": _safe_fraction(abs(up_count - down_count), directional_count),
+        "top_actions": ",".join(top_actions) if top_actions else "n/a",
+    }
+
+
+def _load_compatible_module_state(target_module: nn.Module, source_state: dict[str, torch.Tensor]) -> tuple[int, int]:
+    target_state = target_module.state_dict()
+    compatible = {}
+    skipped = 0
+    for key, value in source_state.items():
+        if key in target_state and target_state[key].shape == value.shape:
+            compatible[key] = value
+        else:
+            skipped += 1
+    target_module.load_state_dict(compatible, strict=False)
+    return len(compatible), skipped
+
+
 class PPOTrainer:
     def __init__(self, config: PPOConfig) -> None:
         self.config = config
@@ -348,6 +454,7 @@ class PPOTrainer:
             obs_shape=self.env.obs_shape,
             model_type=config.model_type,
             feature_dim=config.feature_dim,
+            player_id_dim=self.env.num_players if config.use_player_id else 0,
         ).to(self.device)
         self.init_checkpoint = config.init_checkpoint
         if self.init_checkpoint:
@@ -364,11 +471,64 @@ class PPOTrainer:
         self.current_episode_return = np.zeros(self.env.num_envs, dtype=np.float32)
         self.current_episode_score_reward = np.zeros(self.env.num_envs, dtype=np.float32)
         self.current_episode_length = np.zeros(self.env.num_envs, dtype=np.int32)
+        self.player_id_matrix = np.broadcast_to(
+            np.arange(self.env.num_players, dtype=np.int64),
+            (self.env.num_envs, self.env.num_players),
+        ).copy()
 
     def _load_initial_checkpoint(self, checkpoint_path: str) -> None:
         checkpoint = torch.load(checkpoint_path, map_location="cpu")
-        state_dict = checkpoint["model_state_dict"]
-        self.model.load_state_dict(state_dict, strict=True)
+        if "model_state_dict" in checkpoint:
+            state_dict = checkpoint["model_state_dict"]
+            try:
+                self.model.load_state_dict(state_dict, strict=True)
+            except RuntimeError:
+                loaded, skipped = _load_compatible_module_state(self.model, state_dict)
+                print(
+                    "Initialized PPO from partially compatible checkpoint: "
+                    f"{loaded} tensors loaded, {skipped} skipped."
+                )
+            return
+        if "q1_state_dict" in checkpoint and "q2_state_dict" in checkpoint and "v_state_dict" in checkpoint:
+            from .iql import DiscreteIQL
+
+            if self.model.model_type == "separate_mlp":
+                raise ValueError("Initializing PPO from an IQL checkpoint is not supported for model_type='separate_mlp'.")
+
+            iql = DiscreteIQL.load_checkpoint(checkpoint_path, device="cpu")
+            encoder_loaded, encoder_skipped = _load_compatible_module_state(
+                self.model.encoder,
+                iql.q1.encoder.state_dict(),
+            )
+            actor_loaded, actor_skipped = _load_compatible_module_state(
+                self.model.actor_body,
+                iql.q1.body.state_dict(),
+            )
+            policy_loaded, policy_skipped = _load_compatible_module_state(
+                self.model.policy_head,
+                iql.q1.output_head.state_dict(),
+            )
+            critic_loaded, critic_skipped = _load_compatible_module_state(
+                self.model.critic_body,
+                iql.v.body.state_dict(),
+            )
+            value_loaded, value_skipped = _load_compatible_module_state(
+                self.model.value_head,
+                iql.v.output_head.state_dict(),
+            )
+            print(
+                "Initialized PPO from IQL checkpoint: "
+                f"encoder={encoder_loaded} loaded/{encoder_skipped} skipped, "
+                f"actor_body={actor_loaded}/{actor_skipped}, "
+                f"policy_head={policy_loaded}/{policy_skipped}, "
+                f"critic_body={critic_loaded}/{critic_skipped}, "
+                f"value_head={value_loaded}/{value_skipped}."
+            )
+            return
+        raise ValueError(
+            f"Unsupported init checkpoint format: {checkpoint_path}. "
+            "Expected PPO 'model_state_dict' or IQL 'q1_state_dict'/'q2_state_dict'/'v_state_dict'."
+        )
 
     def collect_rollout(self, observation: np.ndarray) -> tuple[np.ndarray, dict[str, np.ndarray], dict[str, float]]:
         steps = self.config.rollout_steps
@@ -392,8 +552,13 @@ class PPOTrainer:
             obs_buffer[step] = observation
             flat_observation = observation.reshape(num_envs * num_players, self.env.obs_dim)
             obs_tensor = torch.as_tensor(flat_observation, dtype=torch.float32, device=self.device)
+            player_ids_tensor = torch.as_tensor(
+                self.player_id_matrix.reshape(num_envs * num_players),
+                dtype=torch.int64,
+                device=self.device,
+            )
             with torch.no_grad():
-                actions, logprobs, values = self.model.act(obs_tensor)
+                actions, logprobs, values = self.model.act(obs_tensor, player_ids=player_ids_tensor)
 
             action_np = actions.cpu().numpy().reshape(num_envs, num_players)
             next_observation, reward, done, infos = self.env.step(action_np)
@@ -440,7 +605,12 @@ class PPOTrainer:
                     observation.reshape(num_envs * num_players, self.env.obs_dim),
                     dtype=torch.float32,
                     device=self.device,
-                )
+                ),
+                player_ids=torch.as_tensor(
+                    self.player_id_matrix.reshape(num_envs * num_players),
+                    dtype=torch.int64,
+                    device=self.device,
+                ),
             ).cpu().numpy().reshape(num_envs, num_players)
 
         advantages, returns = _compute_gae(
@@ -454,6 +624,10 @@ class PPOTrainer:
 
         batch = {
             "obs": obs_buffer.reshape(-1, self.env.obs_dim),
+            "player_ids": np.broadcast_to(
+                np.arange(self.env.num_players, dtype=np.int64),
+                (steps, num_envs, num_players),
+            ).reshape(-1),
             "actions": action_buffer.reshape(-1),
             "logprobs": logprob_buffer.reshape(-1),
             "advantages": advantages.reshape(-1),
@@ -465,6 +639,7 @@ class PPOTrainer:
             if completed_scores
             else "n/a"
         )
+        action_usage = _summarize_action_usage(action_buffer, self.env.action_dim)
         metrics = {
             "episodes_finished": float(len(completed_returns)),
             "mean_episode_return": float(np.mean(completed_returns)) if completed_returns else float("nan"),
@@ -476,11 +651,21 @@ class PPOTrainer:
             "mean_goals_against": float(np.mean([right for _, right in completed_scores])) if completed_scores else float("nan"),
             "score_examples": score_examples,
             "success_rate": float(np.mean(completed_successes)) if completed_successes else float("nan"),
+            "pass_rate": float(action_usage["pass_rate"]),
+            "shot_rate": float(action_usage["shot_rate"]),
+            "skill_rate": float(action_usage["skill_rate"]),
+            "idle_rate": float(action_usage["idle_rate"]),
+            "direction_rate": float(action_usage["direction_rate"]),
+            "right_bias": float(action_usage["right_bias"]),
+            "left_bias": float(action_usage["left_bias"]),
+            "vertical_bias": float(action_usage["vertical_bias"]),
+            "top_actions": str(action_usage["top_actions"]),
         }
         return observation, batch, metrics
 
     def update(self, batch: dict[str, np.ndarray]) -> dict[str, float]:
         obs = torch.as_tensor(batch["obs"], dtype=torch.float32, device=self.device)
+        player_ids = torch.as_tensor(batch["player_ids"], dtype=torch.int64, device=self.device)
         actions = torch.as_tensor(batch["actions"], dtype=torch.int64, device=self.device)
         old_logprobs = torch.as_tensor(batch["logprobs"], dtype=torch.float32, device=self.device)
         advantages = torch.as_tensor(batch["advantages"], dtype=torch.float32, device=self.device)
@@ -507,6 +692,7 @@ class PPOTrainer:
                 minibatch_indices = indices[start : start + minibatch_size]
                 _, new_logprob, entropy, new_value = self.model.get_action_and_value(
                     obs[minibatch_indices],
+                    player_ids[minibatch_indices],
                     actions[minibatch_indices],
                 )
                 logratio = new_logprob - old_logprobs[minibatch_indices]
@@ -635,6 +821,14 @@ class PPOTrainer:
                         if math.isfinite(rollout_metrics["mean_goals_against"])
                         else "n/a"
                     )
+                    pass_rate_text = f"{rollout_metrics['pass_rate']:.2f}"
+                    shot_rate_text = f"{rollout_metrics['shot_rate']:.2f}"
+                    skill_rate_text = f"{rollout_metrics['skill_rate']:.2f}"
+                    idle_rate_text = f"{rollout_metrics['idle_rate']:.2f}"
+                    direction_rate_text = f"{rollout_metrics['direction_rate']:.2f}"
+                    right_bias_text = f"{rollout_metrics['right_bias']:.2f}"
+                    left_bias_text = f"{rollout_metrics['left_bias']:.2f}"
+                    vertical_bias_text = f"{rollout_metrics['vertical_bias']:.2f}"
                     print(
                         f"[update {update}/{num_updates}] "
                         f"envs={self.env.num_envs} "
@@ -651,6 +845,15 @@ class PPOTrainer:
                         f"goals_for={goals_for_text} "
                         f"goals_against={goals_against_text} "
                         f"score_examples={rollout_metrics['score_examples']} "
+                        f"pass_rate={pass_rate_text} "
+                        f"shot_rate={shot_rate_text} "
+                        f"skill_rate={skill_rate_text} "
+                        f"idle_rate={idle_rate_text} "
+                        f"direction_rate={direction_rate_text} "
+                        f"right_bias={right_bias_text} "
+                        f"left_bias={left_bias_text} "
+                        f"vertical_bias={vertical_bias_text} "
+                        f"top_actions={rollout_metrics['top_actions']} "
                         f"episode_length={length_text} "
                         f"episode_length_range={length_range_text} "
                         f"success_rate={success_text} "
@@ -681,6 +884,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--channel-height", type=int, default=42)
     parser.add_argument("--model-type", choices=MODEL_TYPES, default="auto")
     parser.add_argument("--feature-dim", type=int, default=256)
+    parser.add_argument("--use-player-id", action="store_true")
     parser.add_argument("--total-timesteps", type=int, default=500_000)
     parser.add_argument("--rollout-steps", type=int, default=256)
     parser.add_argument("--num-envs", type=int, default=1)
@@ -731,6 +935,7 @@ def _build_default_arg_values() -> dict[str, Any]:
     parser.add_argument("--channel-height", type=int, default=42)
     parser.add_argument("--model-type", choices=MODEL_TYPES, default="auto")
     parser.add_argument("--feature-dim", type=int, default=256)
+    parser.add_argument("--use-player-id", action="store_true")
     parser.add_argument("--total-timesteps", type=int, default=500_000)
     parser.add_argument("--rollout-steps", type=int, default=256)
     parser.add_argument("--num-envs", type=int, default=1)

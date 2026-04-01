@@ -4,6 +4,7 @@ import math
 from collections.abc import Sequence
 
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torch.distributions import Categorical
 
@@ -145,11 +146,13 @@ class ActorCritic(nn.Module):
         obs_shape: Sequence[int] | None = None,
         model_type: str = "auto",
         feature_dim: int = 256,
+        player_id_dim: int = 0,
     ) -> None:
         super().__init__()
         self.obs_dim = int(obs_dim)
         self.obs_shape = tuple(int(dim) for dim in (obs_shape or (obs_dim,)))
         self.model_type = _resolve_model_type(model_type, self.obs_shape)
+        self.player_id_dim = int(player_id_dim)
 
         if self.model_type == "cnn":
             self.encoder = ConvEncoder(self.obs_shape, feature_dim=feature_dim)
@@ -185,8 +188,8 @@ class ActorCritic(nn.Module):
             critic_body_dim = critic_input_dim
             self._shared_encoder = True
 
-        self.policy_head = _orthogonal_init(nn.Linear(actor_body_dim, action_dim), std=0.01)
-        self.value_head = _orthogonal_init(nn.Linear(critic_body_dim, 1), std=1.0)
+        self.policy_head = _orthogonal_init(nn.Linear(actor_body_dim + self.player_id_dim, action_dim), std=0.01)
+        self.value_head = _orthogonal_init(nn.Linear(critic_body_dim + self.player_id_dim, 1), std=1.0)
 
     def _encode(self, obs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         if self.model_type == "separate_mlp":
@@ -194,22 +197,33 @@ class ActorCritic(nn.Module):
         shared = self.encoder(obs)
         return shared, shared
 
-    def forward(self, obs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def _append_player_id(self, features: torch.Tensor, player_ids: torch.Tensor | None) -> torch.Tensor:
+        if self.player_id_dim <= 0:
+            return features
+        if player_ids is None:
+            raise ValueError("player_ids are required when player_id_dim > 0.")
+        player_one_hot = F.one_hot(player_ids.to(torch.int64), num_classes=self.player_id_dim).to(features.dtype)
+        return torch.cat([features, player_one_hot], dim=-1)
+
+    def forward(self, obs: torch.Tensor, player_ids: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
         actor_features, critic_features = self._encode(obs)
         actor_features = self.actor_body(actor_features)
         critic_features = self.critic_body(critic_features)
+        actor_features = self._append_player_id(actor_features, player_ids)
+        critic_features = self._append_player_id(critic_features, player_ids)
         return self.policy_head(actor_features), self.value_head(critic_features).squeeze(-1)
 
-    def get_value(self, obs: torch.Tensor) -> torch.Tensor:
-        _, value = self.forward(obs)
+    def get_value(self, obs: torch.Tensor, player_ids: torch.Tensor | None = None) -> torch.Tensor:
+        _, value = self.forward(obs, player_ids=player_ids)
         return value
 
     def get_action_and_value(
         self,
         obs: torch.Tensor,
+        player_ids: torch.Tensor | None = None,
         action: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        logits, value = self.forward(obs)
+        logits, value = self.forward(obs, player_ids=player_ids)
         distribution = Categorical(logits=logits)
         if action is None:
             action = distribution.sample()
@@ -220,9 +234,10 @@ class ActorCritic(nn.Module):
     def act(
         self,
         obs: torch.Tensor,
+        player_ids: torch.Tensor | None = None,
         deterministic: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        logits, value = self.forward(obs)
+        logits, value = self.forward(obs, player_ids=player_ids)
         distribution = Categorical(logits=logits)
         action = torch.argmax(logits, dim=-1) if deterministic else distribution.sample()
         log_prob = distribution.log_prob(action)

@@ -21,6 +21,35 @@ This file is intended to be precise and reproducible:
 - evaluation outputs are recorded
 - representative video paths are recorded when available
 
+## How To Read This File
+
+Use this file in three passes:
+
+1. read `Current Working Conclusion`
+2. check `Current Status Summary` and `Stage Passing Criteria`
+3. use `Historical Stage Records` only when you need exact evidence or commands
+
+For a shorter failure-focused summary, also read:
+
+- [TRAINING_FAILURE_ARCHIVE.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/TRAINING_FAILURE_ARCHIVE.md)
+
+## Current Working Conclusion
+
+Current best interpretation of the logged evidence:
+
+- Academy is still useful as a PPO bootstrap stage
+- Academy stage completion has not yet been the same as Academy stage success
+- the best current warm-up handoff checkpoint in this log is still `academy_pass_and_shoot_with_keeper/update_10.pt`
+- pure `five_vs_five` PPO has already shown a strong negative result at the logged `5M+` and `10M+` checkpoints
+- the next meaningful direction is not "just more timesteps", but structured transfer plus better `five_vs_five` objective design
+
+Operationally, this means:
+
+- use Academy to teach primitives
+- transfer into `five_vs_five`
+- evaluate transfer quality carefully
+- treat offline RL as a later `five_vs_five` refinement stage, not as a replacement for curriculum
+
 ## Status Definitions
 
 This log uses two separate judgments for each stage.
@@ -74,8 +103,8 @@ Later, for broader evaluation, add:
 | Stage 0 | `academy_pass_and_shoot_with_keeper` | Completed | Not passed | `2026-04-01 14:25:59` to `14:27:28` | `latest.pt` |
 | Stage 1 | `academy_run_to_score_with_keeper` | Not started | Not evaluated | n/a | n/a |
 | Stage 2 | `academy_pass_and_shoot_with_keeper` | Completed | Not passed | `2026-04-01 14:38:39` to `14:53:03` | `update_10.pt` |
-| Stage 3 | `academy_3_vs_1_with_keeper` | In progress | Not evaluated | `2026-04-01 17:10:58` to active | pending |
-| Stage 4 | `five_vs_five` | Not started | Not evaluated | n/a | n/a |
+| Stage 3 | `academy_3_vs_1_with_keeper` | Stopped early | Not passed | `2026-04-01 17:10:58` to `17:24:56` | none |
+| Stage 4 | `five_vs_five` | In progress | Not evaluated | `2026-04-01 17:25` to active | current run |
 | Stage 5 | `five_vs_five` | Not started | Not evaluated | n/a | n/a |
 
 ## Stage Passing Criteria
@@ -148,15 +177,28 @@ Pass target:
 - `win_rate >= 0.55`
 - `avg_goal_diff > 0.00`
 
-## Stage 0
+## Immediate Operational Notes
 
-### Purpose
+- current final target remains `five_vs_five`, not `11_vs_11`
+- current training still does not use self-play
+- stage transitions should be driven by `stage passed`, not merely by `run completed`
+- if a run finishes without passing, either extend the budget, tune the setup, or treat it as exploratory only
+- if Stage 2 finishes with non-monotonic checkpoint quality, select the transition checkpoint by evaluation, not by latest timestamp
+- the best current warm-up candidate from logged evaluations is `update_10.pt`, not `update_110.pt`
+
+## Historical Stage Records
+
+The sections below preserve the detailed stage-by-stage evidence, commands, and outputs.
+
+### Stage 0
+
+#### Purpose
 
 - smoke test the new vectorized rollout path
 - verify GRF import/runtime path
 - measure initial throughput
 
-### Command
+#### Command
 
 ```bash
 .venv_yfu_grf_sys/bin/python Y_Fu/train.py \
@@ -170,7 +212,7 @@ Pass target:
   --seed 42
 ```
 
-### Timing
+#### Timing
 
 Observed checkpoint window:
 
@@ -183,13 +225,13 @@ Checkpoint references:
 - [update_2.pt](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/update_2.pt)
 - [latest.pt](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/latest.pt)
 
-### Training Notes
+#### Training Notes
 
 - vectorized rollout ran successfully
 - observed training throughput was roughly `env_fps=700~1000`
 - observed `samples_per_sec` was roughly `1400~2000`
 
-### Evaluation
+#### Evaluation
 
 Checkpoint:
 
@@ -224,7 +266,7 @@ Verdict:
 - `run completed`
 - `stage not passed`
 
-### Representative Video
+#### Representative Video
 
 Video output directory:
 
@@ -235,9 +277,9 @@ Representative files:
 - [episode_done_20260401-144307765424.avi](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/videos/stage_log/academy_pass_stage0_seed123/episode_done_20260401-144307765424.avi)
 - [episode_done_20260401-144307765424.dump](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/videos/stage_log/academy_pass_stage0_seed123/episode_done_20260401-144307765424.dump)
 
-## Stage 1
+### Stage 1
 
-### Planned Command
+#### Planned Command
 
 ```bash
 .venv_yfu_grf_sys/bin/python Y_Fu/train.py \
@@ -251,19 +293,19 @@ Representative files:
   --seed 42
 ```
 
-### Status
+#### Status
 
 - not started in this current run log
 
-## Stage 2
+### Stage 2
 
-### Purpose
+#### Purpose
 
 - continue on `academy_pass_and_shoot_with_keeper`
 - build passing, supporting run timing, and shot completion
 - prepare for `five_vs_five` outfield coordination
 
-### Command
+#### Command
 
 ```bash
 .venv_yfu_grf_sys/bin/python Y_Fu/train.py \
@@ -278,7 +320,7 @@ Representative files:
   --seed 42
 ```
 
-### Timing
+#### Timing
 
 Observed persisted checkpoint window:
 
@@ -298,7 +340,7 @@ Completion snapshot:
 - throughput was roughly `env_fps=670~1190`
 - `samples_per_sec` was roughly `1345~2380`
 
-### Evaluation A: Early Stage 2 Checkpoint
+#### Evaluation A: Early Stage 2 Checkpoint
 
 Checkpoint:
 
@@ -328,7 +370,7 @@ Interpretation:
 - but it still failed to actually score in the deterministic test episodes
 - this suggests improved possession/progression behavior without finish reliability
 
-### Evaluation B: Newer Stage 2 Checkpoint
+#### Evaluation B: Newer Stage 2 Checkpoint
 
 Checkpoint:
 
@@ -364,7 +406,7 @@ Verdict:
 - `stage not passed`
 - preferred handoff checkpoint: `update_10.pt`
 
-### Representative Videos
+#### Representative Videos
 
 Early Stage 2 video:
 
@@ -376,9 +418,9 @@ Newer Stage 2 video:
 - [academy_pass_stage2_update110_seed123](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/videos/stage_log/academy_pass_stage2_update110_seed123)
 - [episode_done_20260401-144533240966.avi](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/videos/stage_log/academy_pass_stage2_update110_seed123/episode_done_20260401-144533240966.avi)
 
-## Stage 3
+### Stage 3
 
-### Planned Command
+#### Planned Command
 
 ```bash
 .venv_yfu_grf_sys/bin/python Y_Fu/train.py \
@@ -392,44 +434,121 @@ Newer Stage 2 video:
   --seed 42
 ```
 
-### Planned Evidence To Record
+#### Planned Evidence To Record
 
 - start and end checkpoint timestamps
 - `avg_return`, `avg_goal_diff`, `win_rate`
 - one representative video under `Y_Fu/videos/stage_log/`
 
-### Current Status
+#### Current Status
 
-- `run in progress`
-- `stage not yet evaluated`
-- this stage should not unlock `five_vs_five` automatically just because the configured timesteps finish
+- `run stopped early`
+- `stage not passed`
+- the stage was intentionally cut off because it was consuming environment steps without approaching the pass gate
 
-## Stage 4
+#### Operational Note
 
-### Planned Command Template
+- this stage was not allowed to consume the full budget once it became clear that it was not producing useful progress toward the final `five_vs_five` target
+
+### Stage 4
+
+#### Active Command
 
 ```bash
 .venv_yfu_grf_sys/bin/python Y_Fu/train.py \
   --preset five_vs_five \
   --num-envs 6 \
   --rollout-steps 256 \
-  --total-timesteps 10000000 \
+  --total-timesteps 20000000 \
   --save-interval 10 \
   --update-epochs 4 \
   --num-minibatches 1 \
-  --init-checkpoint <best_warmup_checkpoint> \
+  --init-checkpoint Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/update_10.pt \
   --seed 42
 ```
 
-### Planned Evidence To Record
+#### Current 5M Checkpoint Note
+
+Observed around:
+
+- `2026-04-01 19:02 +0800`
+- roughly `5.4M` agent steps
+- around `update 440 / 1628`
+
+Current behavior summary:
+
+- `goals_for` is still effectively `0`
+- `success_rate` remains `0.000`
+- completed matches are repeatedly full-length `3001` step games
+- scorelines are dominated by losses such as `0-1`, `0-2`, `0-3`, `0-4`, `0-5`, `0-6`
+- the policy still does not look like meaningful football behavior
+
+Observed training signal:
+
+- training itself is stable
+- throughput is roughly `total_sps ≈ 1000`
+- environment steps are being consumed normally
+- the problem is not runtime stability, but lack of meaningful learning progress
+
+Failure interpretation:
+
+- this is a valuable negative result
+- the run has already passed the point where "maybe it just needs a little more time" is a convincing explanation
+- earlier experience suggested that around `2M` steps the behavior still looked like nonsense
+- at `5M+` steps, that concern is now reinforced rather than weakened
+- this strongly suggests that the current setup may be learning the wrong objective or failing to assign credit in a useful way
+
+Operational conclusion:
+
+- continue running to the next hard checkpoint
+- if the `10M` checkpoint still shows no meaningful football structure, the next move should be reward revision rather than blindly increasing timesteps
+
+#### Planned Evidence To Record
 
 - checkpoint timestamps
 - `five_vs_five` evaluation against the built-in bot
 - one representative `five_vs_five` video
 
-## Stage 5
+#### Current 10M Checkpoint Note
 
-### Planned Command Template
+Observed around:
+
+- `2026-04-01 20:19 +0800`
+- roughly `10.6M` agent steps
+- roughly `2.64M` environment steps
+- around `update 861 / 1628`
+
+Current behavior summary:
+
+- `goals_for` remains effectively `0`
+- `success_rate` is still repeatedly `0.000`
+- completed matches are still dominated by full-length `3001` step games
+- scorelines remain dominated by losses such as `0-1`, `0-2`, `0-3`, `0-4`, `0-5`, `0-6`
+- behavior still does not look like meaningful `five_vs_five` football
+
+Observed training signal:
+
+- rollout collection remained stable
+- throughput remained roughly `total_sps ≈ 1060`
+- the run was using environment steps normally
+- the failure is about learning quality, not runtime instability
+
+Failure interpretation:
+
+- this is now a high-confidence negative result, not an early noisy checkpoint
+- the run is well past the point where "just give it a bit more time" is a strong explanation
+- this supports the earlier concern that current reward shaping and credit assignment are not pulling the policy toward real football behavior
+- the result is valuable because it narrows the next intervention to reward revision first, then `player_id` only if reward revision still fails
+
+Operational conclusion:
+
+- this run should no longer be treated as evidence that more timesteps alone will solve `five_vs_five`
+- the next run should use a reward-only revision so the change remains attributable
+- the current run was no longer active at follow-up, so the next step is restart under the revised reward config rather than continue the old setup
+
+### Stage 5
+
+#### Planned Command Template
 
 ```bash
 .venv_yfu_grf_sys/bin/python Y_Fu/train.py \
@@ -448,15 +567,6 @@ Optional scale-up if stable:
 
 - raise `total_timesteps` toward `40_000_000`
 - test `num_envs=8` only if throughput improves without instability
-
-## Immediate Operational Notes
-
-- current final target remains `five_vs_five`, not `11_vs_11`
-- current training still does not use self-play
-- stage transitions should be driven by `stage passed`, not merely by `run completed`
-- if a run finishes without passing, either extend the budget, tune the setup, or treat it as exploratory only
-- if Stage 2 finishes with non-monotonic checkpoint quality, select the transition checkpoint by evaluation, not by latest timestamp
-- the best current warm-up candidate from logged evaluations is `update_10.pt`, not `update_110.pt`
 
 ## Related Files
 

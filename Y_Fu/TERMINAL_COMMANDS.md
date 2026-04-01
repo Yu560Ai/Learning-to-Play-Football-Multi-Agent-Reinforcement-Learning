@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 # Y_Fu Terminal Commands
 
 ## Start Here
@@ -10,109 +9,145 @@ cd ~/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning
 source football-master/football-env/bin/activate
 ```
 
-## Curriculum Training
+## Main Training Line
 
-Train the stages in this order:
+Use this order:
+
+1. Academy PPO
+2. `5_vs_5` PPO
+3. `5_vs_5` offline RL
+4. PPO fine-tuning from IQL if IQL is better
+
+## Academy PPO
+
+### `academy_run_to_score_with_keeper`
 
 ```bash
 python -u Y_Fu/train.py --preset academy_run_to_score_with_keeper --device cpu
-python -u Y_Fu/train.py --preset academy_pass_and_shoot_with_keeper --device cpu
-python -u Y_Fu/train.py --preset academy_3_vs_1_with_keeper --device cpu
-python -u Y_Fu/train.py --preset five_vs_five --device cpu
 ```
 
-## Continue Training From A Checkpoint
-
-Main 2-agent MARL starting point:
+### `academy_pass_and_shoot_with_keeper`
 
 ```bash
 python -u Y_Fu/train.py --preset academy_pass_and_shoot_with_keeper --device cpu
 ```
 
-Continue `academy_3_vs_1_with_keeper`:
+Evaluate:
 
 ```bash
-python -u Y_Fu/train.py --preset academy_3_vs_1_with_keeper --device cpu --total-timesteps 300000 --init-checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt
+python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/latest.pt --episodes 20 --deterministic --compare-random --device cpu --seed 123
 ```
 
-Start `academy_3_vs_1_with_keeper` from `academy_pass_and_shoot_with_keeper`:
+### `academy_3_vs_1_with_keeper`
+
+Start from the best `academy_pass_and_shoot_with_keeper` checkpoint:
 
 ```bash
 python -u Y_Fu/train.py --preset academy_3_vs_1_with_keeper --device cpu --init-checkpoint Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/latest.pt
 ```
 
-Start `five_vs_five` from `academy_3_vs_1_with_keeper`:
+Continue from an existing `academy_3_vs_1_with_keeper` checkpoint:
 
 ```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt
+python -u Y_Fu/train.py --preset academy_3_vs_1_with_keeper --device cpu --total-timesteps 300000 --init-checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt
 ```
 
-Start `five_vs_five` from the better `academy_3_vs_1_with_keeper` checkpoint:
+Evaluate:
 
 ```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/update_90.pt
+python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt --episodes 20 --deterministic --compare-random --device cpu --seed 123
 ```
 
-Start `five_vs_five` from the saved `five_vs_five` checkpoint with balanced offense and defense shaping:
-
-```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --rollout-steps 1024 --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_140.pt --pass-success-reward 0.08 --pass-failure-penalty 0.06 --pass-progress-reward-scale 0.08 --shot-attempt-reward 0.03 --attacking-possession-reward 0.0015 --final-third-entry-reward 0.04 --possession-retention-reward 0.0008 --own-half-turnover-penalty 0.04 --possession-recovery-reward 0.02 --defensive-third-recovery-reward 0.03 --opponent-attacking-possession-penalty 0.0015
-```
-
-Longer 7-hour style `five_vs_five` run:
-
-```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --rollout-steps 1024 --total-timesteps 2000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_140.pt --pass-success-reward 0.08 --pass-failure-penalty 0.06 --pass-progress-reward-scale 0.08 --shot-attempt-reward 0.03 --attacking-possession-reward 0.0015 --final-third-entry-reward 0.04 --possession-retention-reward 0.0008 --own-half-turnover-penalty 0.04 --possession-recovery-reward 0.02 --defensive-third-recovery-reward 0.03 --opponent-attacking-possession-penalty 0.0015
-```
-
-Softer balanced `five_vs_five` restart after the harsher shaping proved too punitive:
-
-```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --rollout-steps 1024 --total-timesteps 2000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_140.pt --pass-success-reward 0.08 --pass-failure-penalty 0.03 --pass-progress-reward-scale 0.08 --shot-attempt-reward 0.03 --attacking-possession-reward 0.0015 --final-third-entry-reward 0.04 --possession-retention-reward 0.0010 --own-half-turnover-penalty 0.015 --possession-recovery-reward 0.02 --defensive-third-recovery-reward 0.02 --opponent-attacking-possession-penalty 0.0005
-```
-
-Main paper-direction multi-agent experiment:
-
-```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --rollout-steps 1024 --total-timesteps 2000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_140.pt --pass-success-reward 0.08 --pass-failure-penalty 0.03 --pass-progress-reward-scale 0.08 --shot-attempt-reward 0.03 --attacking-possession-reward 0.0015 --final-third-entry-reward 0.04 --possession-retention-reward 0.0010 --own-half-turnover-penalty 0.015 --possession-recovery-reward 0.02 --defensive-third-recovery-reward 0.02 --opponent-attacking-possession-penalty 0.0005
-```
-
-Continue `five_vs_five` from the saved 5v5 checkpoint:
-
-```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_70.pt
-```
-
-## Evaluation
-
-Evaluate the 2-agent stage with a less noisy 20-episode sample:
-
-```bash
-python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/latest.pt --episodes 20 --deterministic --compare-random --device cpu
-```
-
-Evaluate the current `academy_3_vs_1_with_keeper` checkpoint:
-
-```bash
-python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt --episodes 10 --deterministic --compare-random --device cpu
-```
-
-Render one `academy_3_vs_1_with_keeper` episode:
+Render one episode:
 
 ```bash
 python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt --episodes 1 --deterministic --render --device cpu
 ```
 
-Evaluate the current `five_vs_five` checkpoint:
+## `5_vs_5` PPO
+
+Start from the best Academy checkpoint:
 
 ```bash
-python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/five_vs_five/latest.pt --episodes 5 --deterministic --compare-random --device cpu
+python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt
 ```
 
-Render one `five_vs_five` episode:
+Start from a better earlier Academy checkpoint if that one looks cleaner:
+
+```bash
+python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/update_90.pt
+```
+
+Continue a `5_vs_5` PPO run from an existing checkpoint:
+
+```bash
+python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_70.pt
+```
+
+Evaluate the current `5_vs_5` checkpoint:
+
+```bash
+python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/five_vs_five/latest.pt --episodes 20 --deterministic --compare-random --device cpu --seed 123
+```
+
+Render one episode:
 
 ```bash
 python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/five_vs_five/latest.pt --episodes 1 --deterministic --render --device cpu
+```
+
+## `5_vs_5` Offline RL
+
+Pilot collection from the best PPO checkpoint:
+
+```bash
+python3 Y_Fu/collect_offline_data.py --checkpoint Y_Fu/checkpoints/five_vs_five/latest.pt --policy checkpoint --num-envs 6 --total-env-steps 200000 --epsilon 0.0 --chunk-size 500000 --save-dir Y_Fu/offline_data/pilot_5v5_best_eps0 --seed 123 --obs-dtype float16 --checkpoint-id 1
+```
+
+Pilot collection with exploration:
+
+```bash
+python3 Y_Fu/collect_offline_data.py --checkpoint Y_Fu/checkpoints/five_vs_five/latest.pt --policy checkpoint --num-envs 6 --total-env-steps 100000 --epsilon 0.15 --chunk-size 500000 --save-dir Y_Fu/offline_data/pilot_5v5_best_eps15 --seed 124 --obs-dtype float16 --checkpoint-id 1
+```
+
+Pilot collection from a weaker PPO checkpoint:
+
+```bash
+python3 Y_Fu/collect_offline_data.py --checkpoint Y_Fu/checkpoints/five_vs_five/update_10.pt --policy checkpoint --num-envs 6 --total-env-steps 100000 --epsilon 0.05 --chunk-size 500000 --save-dir Y_Fu/offline_data/pilot_5v5_weaker_eps005 --seed 125 --obs-dtype float16 --checkpoint-id 2
+```
+
+Pilot collection from a random policy:
+
+```bash
+python3 Y_Fu/collect_offline_data.py --policy random --num-envs 6 --total-env-steps 100000 --epsilon 0.0 --chunk-size 500000 --save-dir Y_Fu/offline_data/pilot_5v5_random --seed 126 --obs-dtype float16 --checkpoint-id 3
+```
+
+Pilot IQL training:
+
+```bash
+python3 Y_Fu/train_iql.py --dataset-dirs Y_Fu/offline_data/pilot_5v5_best_eps0 Y_Fu/offline_data/pilot_5v5_best_eps15 Y_Fu/offline_data/pilot_5v5_weaker_eps005 Y_Fu/offline_data/pilot_5v5_random --reward-key reward --device cuda --save-dir Y_Fu/checkpoints/iql_5v5_pilot --batch-size 4096 --learning-rate 3e-4 --gamma 0.993 --expectile 0.7 --temperature 3.0 --tau 0.005 --total-gradient-steps 20000 --eval-interval 5000 --save-interval 10000 --eval-episodes 20 --seed 123
+```
+
+Evaluate the pilot IQL checkpoint:
+
+```bash
+python3 Y_Fu/evaluate_iql.py --checkpoint Y_Fu/checkpoints/iql_5v5_pilot/best.pt --episodes 20 --deterministic --device cuda --seed 123
+```
+
+## PPO Fine-Tuning From IQL
+
+The PPO trainer now supports `--init-checkpoint` from IQL checkpoints.
+
+Resume `5_vs_5` PPO from the best IQL checkpoint:
+
+```bash
+python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/iql_5v5_iter0/best.pt
+```
+
+Evaluate the fine-tuned PPO checkpoint:
+
+```bash
+python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/five_vs_five/latest.pt --episodes 20 --deterministic --compare-random --device cpu --seed 523
 ```
 
 ## SaltyFish-Inspired Baseline
@@ -123,7 +158,7 @@ Train the separate single-player competition-style baseline:
 python Y_Fu/train_saltyfish.py --device cpu
 ```
 
-Train the upgraded SaltyFish-inspired baseline from an older checkpoint family:
+Continue from an older checkpoint:
 
 ```bash
 python Y_Fu/train_saltyfish.py --device cpu --init-checkpoint Y_Fu/checkpoints/saltyfish_baseline/latest.pt
@@ -135,141 +170,30 @@ Run a shorter smoke test:
 python Y_Fu/train_saltyfish.py --device cpu --total-timesteps 50000 --rollout-steps 256
 ```
 
-Evaluate the SaltyFish-inspired baseline:
+Evaluate:
 
 ```bash
 python Y_Fu/evaluate_saltyfish.py --checkpoint Y_Fu/checkpoints/saltyfish_baseline/latest.pt --episodes 5 --compare-random --device cpu
 ```
 
-Evaluate a checkpoint with a less noisy 20-episode sample:
-
-```bash
-python Y_Fu/evaluate_saltyfish.py --checkpoint Y_Fu/checkpoints/saltyfish_baseline/update_200.pt --episodes 20 --deterministic --compare-random --device cpu
-```
-
 ## Save Video
 
-Save one evaluation video:
+Save one `academy_3_vs_1_with_keeper` video:
 
 ```bash
 python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt --episodes 1 --deterministic --device cpu --save-video --video-dir Y_Fu/videos/academy_3_vs_1_with_keeper
 ```
 
-Save video from the better `academy_3_vs_1_with_keeper` checkpoint:
+Save one `5_vs_5` video:
 
 ```bash
-python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/update_90.pt --episodes 20 --device cpu --save-video --video-dir Y_Fu/videos/academy_3v1_update90
+python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/five_vs_five/latest.pt --episodes 1 --deterministic --device cpu --save-video --video-dir Y_Fu/videos/five_vs_five_latest
 ```
 
 ## Notes
 
-- Use preset-specific checkpoints, not `Y_Fu/checkpoints/latest.pt`.
-- Current shared environment is `football-master/football-env`.
-- Read `Y_Fu/SPEC.md` for explanations of rewards, success rate, episode endings, and PPO losses.
-=======
-# Y_Fu Terminal Commands
-
-## Start Here
-
-From the repository root:
-
-```bash
-cd ~/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning
-source football-master/football-env/bin/activate
-```
-
-## Curriculum Training
-
-Train the stages in this order:
-
-```bash
-python -u Y_Fu/train.py --preset academy_run_to_score_with_keeper --device cpu
-python -u Y_Fu/train.py --preset academy_pass_and_shoot_with_keeper --device cpu
-python -u Y_Fu/train.py --preset academy_3_vs_1_with_keeper --device cpu
-python -u Y_Fu/train.py --preset five_vs_five --device cpu
-```
-
-## Continue Training From A Checkpoint
-
-Continue `academy_3_vs_1_with_keeper`:
-
-```bash
-python -u Y_Fu/train.py --preset academy_3_vs_1_with_keeper --device cpu --total-timesteps 300000 --init-checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt
-```
-
-Start `academy_3_vs_1_with_keeper` from `academy_pass_and_shoot_with_keeper`:
-
-```bash
-python -u Y_Fu/train.py --preset academy_3_vs_1_with_keeper --device cpu --init-checkpoint Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/latest.pt
-```
-
-Start `five_vs_five` from `academy_3_vs_1_with_keeper`:
-
-```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt
-```
-
-Start `five_vs_five` from the better `academy_3_vs_1_with_keeper` checkpoint:
-
-```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/update_90.pt
-```
-
-Start `five_vs_five` from the saved `five_vs_five` checkpoint with stronger offense shaping:
-
-```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --rollout-steps 1024 --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_140.pt --pass-success-reward 0.08 --pass-failure-penalty 0.06 --pass-progress-reward-scale 0.08 --shot-attempt-reward 0.03 --attacking-possession-reward 0.0015 --final-third-entry-reward 0.04 --possession-retention-reward 0.0008 --own-half-turnover-penalty 0.04
-```
-
-Continue `five_vs_five` from the saved 5v5 checkpoint:
-
-```bash
-python -u Y_Fu/train.py --preset five_vs_five --device cpu --total-timesteps 1000000 --init-checkpoint Y_Fu/checkpoints/five_vs_five/update_70.pt
-```
-
-## Evaluation
-
-Evaluate the current `academy_3_vs_1_with_keeper` checkpoint:
-
-```bash
-python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt --episodes 10 --deterministic --compare-random --device cpu
-```
-
-Render one `academy_3_vs_1_with_keeper` episode:
-
-```bash
-python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt --episodes 1 --deterministic --render --device cpu
-```
-
-Evaluate the current `five_vs_five` checkpoint:
-
-```bash
-python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/five_vs_five/latest.pt --episodes 5 --deterministic --compare-random --device cpu
-```
-
-Render one `five_vs_five` episode:
-
-```bash
-python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/five_vs_five/latest.pt --episodes 1 --deterministic --render --device cpu
-```
-
-## Save Video
-
-Save one evaluation video:
-
-```bash
-python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/latest.pt --episodes 1 --deterministic --device cpu --save-video --video-dir Y_Fu/videos/academy_3_vs_1_with_keeper
-```
-
-Save video from the better `academy_3_vs_1_with_keeper` checkpoint:
-
-```bash
-python Y_Fu/evaluate.py --checkpoint Y_Fu/checkpoints/academy_3_vs_1_with_keeper/update_90.pt --episodes 20 --device cpu --save-video --video-dir Y_Fu/videos/academy_3v1_update90
-```
-
-## Notes
-
-- Use preset-specific checkpoints, not `Y_Fu/checkpoints/latest.pt`.
-- Current shared environment is `football-master/football-env`.
-- Read `Y_Fu/SPEC.md` for explanations of rewards, success rate, episode endings, and PPO losses.
->>>>>>> Stashed changes
+- Do not mix Academy and `5_vs_5` datasets in the same initial IQL run.
+- Use preset-specific checkpoints, not a generic `latest.pt` from another stage.
+- `latest.pt` is not automatically the best checkpoint.
+- Read [OFFLINE_RL_COMMANDS.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/OFFLINE_RL_COMMANDS.md) for the full hybrid command flow.
+- Read [PPO_IQL_EXECUTION_CHECKLIST.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/PPO_IQL_EXECUTION_CHECKLIST.md) for the shortest execution checklist.

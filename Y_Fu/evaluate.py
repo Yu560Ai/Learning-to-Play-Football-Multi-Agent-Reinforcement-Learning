@@ -29,6 +29,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--num-controlled-players", type=int)
     parser.add_argument("--channel-width", type=int)
     parser.add_argument("--channel-height", type=int)
+    parser.add_argument("--use-player-id", action="store_true")
     return parser.parse_args()
 
 
@@ -122,8 +123,15 @@ def evaluate_agent(
                 actions = env.sample_random_action()
             else:
                 observation_tensor = torch.as_tensor(observation, dtype=torch.float32, device=device)
+                player_ids = None
+                if getattr(actor, "player_id_dim", 0) > 0:
+                    player_ids = torch.arange(env.num_players, dtype=torch.int64, device=device)
                 with torch.no_grad():
-                    sampled_actions, _, _ = actor.act(observation_tensor, deterministic=deterministic)
+                    sampled_actions, _, _ = actor.act(
+                        observation_tensor,
+                        player_ids=player_ids,
+                        deterministic=deterministic,
+                    )
                 actions = sampled_actions.cpu().numpy()
 
             observation, reward, done, info = env.step(actions)
@@ -191,6 +199,9 @@ def main() -> None:
         obs_shape=tuple(checkpoint.get("obs_shape", (checkpoint["obs_dim"],))),
         model_type=config.get("model_type", "auto"),
         feature_dim=int(config.get("feature_dim", 256)),
+        player_id_dim=int(config.get("num_players", config.get("num_controlled_players", 0)))
+        if (bool(config.get("use_player_id", False)) or args.use_player_id)
+        else 0,
     )
     model.load_state_dict(checkpoint["model_state_dict"])
     device = resolve_device(args.device)
