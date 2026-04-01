@@ -1,0 +1,69 @@
+Please run the full Arena evaluation for all settled shared models in this repository.
+
+Repository:
+`/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning`
+
+Important instructions:
+
+1. You should run terminal commands yourself. Do not only suggest commands.
+2. Use only curated shared models from:
+   - `best_models/Y_Fu/`
+   - `best_models/Y_Yao/`
+   - `best_models/X_Jiang/`
+3. Do not use personal checkpoint trees such as `Y_Fu/checkpoints/...` for the official Arena comparison.
+4. Follow the Arena protocol in:
+   - `Arena/ARENA_RULES_SPEC.md`
+5. The main Arena task is:
+   - `five_vs_five`
+
+Evaluation requirements:
+
+1. First inspect which real `.pt` files exist in each owner folder.
+2. Report missing models explicitly. Do not silently skip blocked pairings.
+3. For each available owner model, run baseline evaluation against Google built-in in both directions:
+   - owner model on left vs `google_builtin` on right
+   - `google_builtin` on left vs owner model on right
+4. If all three owner models are present, run the full inter-owner round-robin in both directions for:
+   - `Y_Fu` vs `Y_Yao`
+   - `Y_Fu` vs `X_Jiang`
+   - `Y_Yao` vs `X_Jiang`
+5. Use the current 5v5 Arena configuration:
+   - `--env-name 5_vs_5`
+   - `--representation extracted`
+   - `--action-set v2`
+   - `--left-players 4`
+   - `--right-players 4`
+   - `--channel-width 42`
+   - `--channel-height 42`
+6. Use a consistent seed list and store per-seed results.
+7. Save at least one representative video for:
+   - each owner vs Google built-in
+   - each inter-owner pairing, if that pairing is available
+
+Storage requirements:
+
+1. Save reports under:
+   - `Arena/reports/full_best_models_eval/`
+2. Save videos under:
+   - `Arena/videos/full_best_models_eval/`
+3. Create a readable text report that includes:
+   - model availability
+   - commands used
+   - blocked pairings
+   - per-seed results
+   - summary metrics
+   - combined interpretation
+
+Required summary metrics:
+
+- `left_avg_reward`
+- `right_avg_reward`
+- `avg_score`
+- `avg_goal_diff`
+- `left_win_rate`
+- `draw_rate`
+- `avg_length`
+
+If the current Arena code is missing an adapter for one owner model, implement the adapter first, then run the evaluation.
+
+Do not stop at analysis. Actually run the full evaluation workflow and store the outputs cleanly.

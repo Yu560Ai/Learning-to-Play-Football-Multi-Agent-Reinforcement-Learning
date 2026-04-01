@@ -11,8 +11,8 @@ class ArenaAgent(ABC):
         """Reset any per-episode state."""
 
     @abstractmethod
-    def act(self, raw_observation: dict[str, Any], *, deterministic: bool = False) -> int:
-        """Return one environment action in the default football action set."""
+    def act(self, raw_observation: Any, *, deterministic: bool = False) -> int | list[int]:
+        """Return one or more environment actions in the active football action set."""
 
     def close(self) -> None:
         """Release resources when the match is over."""

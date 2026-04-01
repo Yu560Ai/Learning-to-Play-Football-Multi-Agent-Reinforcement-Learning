@@ -21,6 +21,12 @@ class EpisodeResult:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run a head-to-head football arena match between two local agents.")
     parser.add_argument("--env-name", default="11_vs_11_kaggle")
+    parser.add_argument("--representation", default="raw")
+    parser.add_argument("--action-set", default="default")
+    parser.add_argument("--left-players", type=int, default=1)
+    parser.add_argument("--right-players", type=int, default=1)
+    parser.add_argument("--channel-width", type=int, default=42)
+    parser.add_argument("--channel-height", type=int, default=42)
     parser.add_argument("--episodes", type=int, default=3)
     parser.add_argument("--max-steps", type=int)
     parser.add_argument("--left-agent", default="yfu_saltyfish")
@@ -33,6 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--deterministic-right", action="store_true")
     parser.add_argument("--left-seed", type=int)
     parser.add_argument("--right-seed", type=int)
+    parser.add_argument("--env-seed", type=int)
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--save-video", action="store_true")
     parser.add_argument("--video-dir", default="Arena/videos")
@@ -61,6 +68,12 @@ def main() -> None:
     args = parse_args()
     env = ArenaMatchEnv(
         env_name=args.env_name,
+        representation=args.representation,
+        action_set=args.action_set,
+        left_players=args.left_players,
+        right_players=args.right_players,
+        channel_dimensions=(args.channel_width, args.channel_height),
+        env_seed=args.env_seed,
         render=args.render,
         save_video=args.save_video,
         video_dir=args.video_dir,

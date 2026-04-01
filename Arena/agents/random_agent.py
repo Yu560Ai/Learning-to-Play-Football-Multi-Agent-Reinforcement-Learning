@@ -12,6 +12,9 @@ class RandomAgent(ArenaAgent):
         self._num_actions = num_actions
         self._rng = np.random.default_rng(seed)
 
-    def act(self, raw_observation: dict[str, Any], *, deterministic: bool = False) -> int:
-        del raw_observation, deterministic
+    def act(self, raw_observation: Any, *, deterministic: bool = False) -> int | list[int]:
+        del deterministic
+        obs_array = np.asarray(raw_observation, dtype=object)
+        if obs_array.ndim >= 1 and obs_array.shape[0] > 1:
+            return self._rng.integers(self._num_actions, size=int(obs_array.shape[0])).astype(int).tolist()
         return int(self._rng.integers(self._num_actions))

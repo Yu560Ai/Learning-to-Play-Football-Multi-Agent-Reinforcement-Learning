@@ -15,11 +15,14 @@ venv/
 .env/
 env/
 .venv/
+.venv_yfu_grf/
+.venv_yfu_grf_sys/
 football-env-modern/
 football-master/football-env/
 
 # PyCharm
 .idea/
+.vscode/
 
 # Checkpoints and model weights (ignore all except curated best_models folders)
 checkpoints/
@@ -41,6 +44,7 @@ videos/
 # OS generated files
 .DS_Store
 Thumbs.db
+*:Zone.Identifier
 
 # Best models directory is intentionally tracked for curated model share
 !best_models/

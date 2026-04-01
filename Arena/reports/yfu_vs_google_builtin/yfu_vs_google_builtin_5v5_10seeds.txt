@@ -1,0 +1,40 @@
+Y_Fu vs Google Built-In Arena Evaluation
+
+checkpoint: best_models/Y_Fu/shared_policy_ppo_five_vs_five_Y_Fu_0.0%.pt
+environment: 5_vs_5
+representation: extracted
+action_set: v2
+controlled_players_per_side: 4
+
+Direction A: Y_Fu on left vs Google built-in on right
+summary: left_avg_reward=-1.700 right_avg_reward=1.700 avg_score=0.000-1.700 avg_goal_diff=-1.700 left_win_rate=0.000 draw_rate=0.200 avg_length=3001.0
+per-seed results:
+seed=100 score=0-3 goal_diff=-3 left_reward=-3.000 right_reward=3.000 length=3001
+seed=101 score=0-2 goal_diff=-2 left_reward=-2.000 right_reward=2.000 length=3001
+seed=102 score=0-0 goal_diff=+0 left_reward=0.000 right_reward=0.000 length=3001
+seed=103 score=0-2 goal_diff=-2 left_reward=-2.000 right_reward=2.000 length=3001
+seed=104 score=0-4 goal_diff=-4 left_reward=-4.000 right_reward=4.000 length=3001
+seed=105 score=0-1 goal_diff=-1 left_reward=-1.000 right_reward=1.000 length=3001
+seed=106 score=0-0 goal_diff=+0 left_reward=0.000 right_reward=0.000 length=3001
+seed=107 score=0-2 goal_diff=-2 left_reward=-2.000 right_reward=2.000 length=3001
+seed=108 score=0-1 goal_diff=-1 left_reward=-1.000 right_reward=1.000 length=3001
+seed=109 score=0-2 goal_diff=-2 left_reward=-2.000 right_reward=2.000 length=3001
+
+Direction B: Google built-in on left vs Y_Fu on right
+summary: left_avg_reward=1.400 right_avg_reward=-1.400 avg_score=1.400-0.000 avg_goal_diff=1.400 left_win_rate=0.700 draw_rate=0.300 avg_length=3001.0
+per-seed results:
+seed=100 score=4-0 goal_diff=+4 left_reward=4.000 right_reward=-4.000 length=3001
+seed=101 score=1-0 goal_diff=+1 left_reward=1.000 right_reward=-1.000 length=3001
+seed=102 score=3-0 goal_diff=+3 left_reward=3.000 right_reward=-3.000 length=3001
+seed=103 score=2-0 goal_diff=+2 left_reward=2.000 right_reward=-2.000 length=3001
+seed=104 score=1-0 goal_diff=+1 left_reward=1.000 right_reward=-1.000 length=3001
+seed=105 score=1-0 goal_diff=+1 left_reward=1.000 right_reward=-1.000 length=3001
+seed=106 score=0-0 goal_diff=+0 left_reward=0.000 right_reward=0.000 length=3001
+seed=107 score=0-0 goal_diff=+0 left_reward=0.000 right_reward=0.000 length=3001
+seed=108 score=0-0 goal_diff=+0 left_reward=0.000 right_reward=0.000 length=3001
+seed=109 score=2-0 goal_diff=+2 left_reward=2.000 right_reward=-2.000 length=3001
+
+Combined interpretation:
+combined_record: Y_Fu wins=0, Google wins=15, draws=5
+representative_video_seed: 100
+representative_video_dir: Arena/videos/yfu_vs_google_builtin
