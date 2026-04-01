@@ -27,4 +27,14 @@ Important current team focus:
 - `2_agents` and `3_agents` are supporting curriculum only.
 - `11v11` is de-prioritized unless extra time remains.
 
+Documentation workflow to preserve:
+
+- When an AI-assisted training idea, evaluation plan, reward-design idea, or workflow change seems useful, summarize it into a markdown file instead of leaving it only in chat.
+- Prefer storing those summaries inside the owner folder, for example `Y_Fu/`, `Y_Yao/`, or `X_Jiang/`.
+- At the end of the day, prefer committing and pushing these markdown summaries and related README updates, even if the training checkpoints stay local.
+- Each owner README should be updated to explain what each important markdown file is for, so teammates can quickly read what experiments, plans, and conclusions already exist.
+- Do not rely only on memory or chat history for experiment context; preserve the reasoning in repo markdown files.
+
 If there are local changes that are clearly unrelated to the pull, ask before committing anything.
+
+If there are only markdown / README workflow updates, it is acceptable to commit and push those without waiting for a new model checkpoint.

@@ -9,6 +9,80 @@ The implementation is designed as a practical starting point for your project:
 - it works well with `simple115v2` observations for normal `11_vs_11_*` scenarios
 - it keeps all custom code inside `Y_Fu` without modifying the upstream environment
 
+## Current Focus
+
+The current final target is:
+
+- `five_vs_five`
+
+Current practical priority order:
+
+1. stabilize and evaluate `five_vs_five`
+2. use `academy_*` only as curriculum or diagnostics
+3. treat `11v11` as lower priority unless extra time remains
+
+## Document Map
+
+Use this section as the main index for the markdown files under `Y_Fu/`.
+
+### Read First
+
+- [README.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/README.md)
+  - main entry point for the `Y_Fu` folder
+- [TRAINING_READING_GUIDE.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/TRAINING_READING_GUIDE.md)
+  - quickest way to reconstruct the current training line
+- [TRAINING_STAGE_LOG.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/TRAINING_STAGE_LOG.md)
+  - current run log with `run completed` vs `stage passed`
+
+### Current Training Execution
+
+- [THREE_DAY_5V5_TRAINING_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/THREE_DAY_5V5_TRAINING_PLAN.md)
+  - current `5v5` training schedule and resource plan
+- [FIVE_V_FIVE_HALF_DAY_CHECKLIST.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/FIVE_V_FIVE_HALF_DAY_CHECKLIST.md)
+  - `5M / 10M / 20M` checkpoint criteria for the current `five_vs_five` run
+- [TRAINING_STAGE_LOG.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/TRAINING_STAGE_LOG.md)
+  - precise log of stage timing, evaluation, and representative videos
+
+### Reward Design And PPO Reasoning
+
+- [REWARD_SHAPING_KEY_IDEA.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/REWARD_SHAPING_KEY_IDEA.md)
+  - explains how reward shaping affects PPO through `return -> advantage -> actor/critic update`
+- [REWARD_REVISION_PROPOSAL.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/REWARD_REVISION_PROPOSAL.md)
+  - concrete proposal for revising the current shaping coefficients
+
+### Method Roadmap
+
+- [TRAINING_METHOD_ROADMAP.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/TRAINING_METHOD_ROADMAP.md)
+  - two-layer roadmap: low-cost methods first, more systematic methods later
+- [MARL_ROADMAP_SPEC.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/MARL_ROADMAP_SPEC.md)
+  - broader multi-agent stage roadmap
+- [RESEARCH_TODO_SPEC.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/RESEARCH_TODO_SPEC.md)
+  - how outside papers should be used to improve the `Y_Fu` line
+
+### Reports And Results
+
+- [multiagent_eval_report.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/reports/multiagent_eval_report.md)
+  - current evaluation report for the multi-agent line
+
+### Legacy / Supplemental Notes
+
+- [SPEC.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/SPEC.md)
+  - older working spec notes
+- [TERMINAL_COMMANDS.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/TERMINAL_COMMANDS.md)
+  - older terminal command notes
+- [SALTYFISH_UPGRADE_SPEC.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/SALTYFISH_UPGRADE_SPEC.md)
+  - notes for the separate `saltyfish_baseline` line
+
+### Which Files Matter Most Right Now
+
+If you only want the current active line, read these in order:
+
+1. [TRAINING_STAGE_LOG.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/TRAINING_STAGE_LOG.md)
+2. [THREE_DAY_5V5_TRAINING_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/THREE_DAY_5V5_TRAINING_PLAN.md)
+3. [FIVE_V_FIVE_HALF_DAY_CHECKLIST.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/FIVE_V_FIVE_HALF_DAY_CHECKLIST.md)
+4. [REWARD_SHAPING_KEY_IDEA.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/REWARD_SHAPING_KEY_IDEA.md)
+5. [TRAINING_METHOD_ROADMAP.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/TRAINING_METHOD_ROADMAP.md)
+
 ## What Is Implemented
 
 - `train.py`: trains a PPO agent
