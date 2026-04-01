@@ -202,3 +202,128 @@ Do not commit:
 - dumps
 - logs
 - local virtual environments
+
+## Strategy
+
+### Current RL Training Strategy
+
+At the current stage, the main reinforcement learning strategy for `X_Jiang` is:
+
+- keep PPO as the core optimization method
+- treat each controlled player as an individual training unit inside the same football episode
+- let each player learn from its own observation, action, reward, and advantage signal
+- keep all players inside one shared team environment rather than splitting the match into separate environments
+
+In practical terms, the training logic is:
+
+1. Start one `5_vs_5` GRF episode
+2. Control the left-side players in the same match
+3. For each timestep, collect per-player:
+   - observation
+   - chosen action
+   - action log-probability
+   - value estimate
+   - reward
+4. Store rollout data across time
+5. Use PPO + GAE to compute advantages
+6. Update the policy from the collected rollout
+
+### Why We Chose This Direction
+
+The reason for this strategy is that football is not a single-agent problem.
+
+Even though the team shares one match environment, the players do not have the same job:
+
+- goalkeeper should stay deep and protect goal
+- defenders should pressure and recover in their own channels
+- midfielder should connect play and support both sides of the ball
+- striker should stay more advanced and provide first-line pressure
+
+If we train everything as one completely undifferentiated behavior, the most common failure mode is:
+
+- goalkeeper learns something partially useful
+- outfield players become too passive
+- players do not pressure the ball correctly
+- off-ball support shape is poor
+
+So the current strategy is to make PPO learn player behavior at the per-player level, while still learning inside one full team game.
+
+### Per-Player PPO Logic
+
+The intended logic is:
+
+- each player produces its own action at each timestep
+- each player receives reward feedback from the same football transition
+- PPO optimization is done over the aggregated batch of player-timestep samples
+- role-aware reward shaping is used so that different players are pushed toward different tactical behavior
+
+This means we are not training one giant monolithic "team action" directly.
+Instead, we are training player decisions within a shared team rollout.
+
+Conceptually:
+
+- same match
+- multiple controlled players
+- PPO updates built from player-wise samples
+
+### Shared Team Context + Role Separation
+
+Our current research direction is not five fully isolated independent projects with five completely unrelated training pipelines.
+
+Instead, the logic is:
+
+- players act separately
+- players are evaluated inside the same match context
+- reward shaping can emphasize different tactical responsibilities
+- the whole system should still improve as one coordinated team
+
+So the target is:
+
+- tactical separation at the player level
+- coordination at the team level
+- PPO as the common optimization framework
+
+### What "Separate Training" Means Here
+
+When we say the players are "trained separately", we do **not** mean:
+
+- launching five unrelated matches
+- using five unrelated football simulators
+- building a completely different environment stack
+
+What we mean is:
+
+- each player is treated as its own decision-making unit
+- the rollout buffer contains player-wise samples
+- the learning signal should allow different players to specialize
+- specialization is guided through role design and reward shaping
+
+So the separation is at the policy-learning and behavior-learning level, not at the environment level.
+
+### Current Practical Goal
+
+The immediate practical goal of this strategy is:
+
+- goalkeeper remains stable near goal
+- nearest outfield player actively chases the ball when defending
+- other outfield players recover into useful support positions
+- defenders hold left/right structure better
+- midfielder becomes a connector rather than a spectator
+- striker stays more advanced and contributes to pressure
+
+### Next Strategy Iteration
+
+If longer PPO training still shows weak ball pressure from outfield players, the next iteration should continue along this same strategy direction:
+
+- stronger per-player defensive chase incentives
+- clearer role-conditioned behavior
+- better distinction between first presser and covering teammates
+- more stable long-run PPO training and evaluation
+
+In short, the current strategy is:
+
+- multi-player PPO
+- player-wise learning signals
+- shared team environment
+- role-guided specialization
+- football coordination learned inside one match rollout
