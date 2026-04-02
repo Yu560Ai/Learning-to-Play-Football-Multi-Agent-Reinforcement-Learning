@@ -19,5 +19,6 @@ Working directory for Google Research Football (multi-agent).
 - `docs/next_steps.md`: half-day / one-day checklist and actions (must read)
 - `docs/reward_shaping_notes.md`: active 5v5 reward shaping config and caveats
 - `docs/reference_notes.md`: references to other team lines and how this line differs
+- `docs/differentiated_routes.md`: new ideas that deliberately differ from Y_Fu and X_Jiang (read to avoid duplication)
 
-Read first: `mainline_summary.md`, `experiment_log.md`, `next_steps.md`.
+Read first: `mainline_summary.md`, `experiment_log.md`, `next_steps.md`, `differentiated_routes.md`.
