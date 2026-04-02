@@ -7,8 +7,10 @@ import torch
 from torch import nn
 from torch.distributions import Categorical
 
+from xjiang_football.utils import NUM_POLICY_HEADS
 
-MODEL_TYPES = ("auto", "mlp", "residual_mlp", "cnn")
+
+MODEL_TYPES = ("auto", "mlp", "residual_mlp", "cnn", "tactical_mlp")
 
 
 def orthogonal_init(module: nn.Module, std: float = 1.0, bias_const: float = 0.0) -> nn.Module:
@@ -145,9 +147,48 @@ class ConvEncoder(nn.Module):
 def resolve_model_type(model_type: str, obs_shape: Sequence[int]) -> str:
     if model_type == "auto":
         return "cnn" if len(obs_shape) >= 2 else "residual_mlp"
+    if model_type == "tactical_mlp":
+        return "residual_mlp"
     if model_type not in MODEL_TYPES:
         raise ValueError(f"Unsupported model_type={model_type!r}. Expected one of {MODEL_TYPES}.")
     return model_type
+
+
+def apply_action_mask(logits: torch.Tensor, action_mask: torch.Tensor | None) -> torch.Tensor:
+    if action_mask is None:
+        return logits
+
+    mask = action_mask.to(device=logits.device, dtype=torch.bool)
+    if mask.ndim != logits.ndim:
+        raise ValueError(f"Expected action_mask with {logits.ndim} dims, got {mask.ndim}.")
+    if logits.shape != mask.shape:
+        raise ValueError(f"Action mask shape {tuple(mask.shape)} does not match logits shape {tuple(logits.shape)}.")
+
+    invalid_rows = ~mask.any(dim=-1)
+    if invalid_rows.any():
+        mask = mask.clone()
+        mask[invalid_rows, 0] = True
+
+    return logits.masked_fill(~mask, torch.finfo(logits.dtype).min)
+
+
+def combine_head_outputs(
+    heads: nn.ModuleList,
+    features: torch.Tensor,
+    head_indices: torch.Tensor | None,
+) -> torch.Tensor:
+    if len(heads) == 1 or head_indices is None:
+        return heads[0](features)
+
+    head_ids = head_indices.to(device=features.device, dtype=torch.int64).reshape(-1)
+    outputs = heads[0](features)
+    unique_head_ids = torch.unique(torch.clamp(head_ids, 0, len(heads) - 1))
+    for head_id_tensor in unique_head_ids:
+        head_id = int(head_id_tensor.item())
+        selector = head_ids == head_id
+        if selector.any():
+            outputs[selector] = heads[head_id](features[selector])
+    return outputs
 
 
 class ActorCritic(nn.Module):
@@ -159,6 +200,9 @@ class ActorCritic(nn.Module):
         obs_shape: Sequence[int] | None = None,
         model_type: str = "auto",
         feature_dim: int = 256,
+        use_specialized_policy_heads: bool = False,
+        use_specialized_value_heads: bool = False,
+        num_policy_heads: int = NUM_POLICY_HEADS,
     ) -> None:
         super().__init__()
 
@@ -191,31 +235,46 @@ class ActorCritic(nn.Module):
             actor_body_dim = actor_input_dim
             critic_body_dim = critic_input_dim
 
-        self.policy_head = orthogonal_init(nn.Linear(actor_body_dim, action_dim), std=0.01)
-        self.value_head = orthogonal_init(nn.Linear(critic_body_dim, 1), std=1.0)
+        self.use_specialized_policy_heads = bool(use_specialized_policy_heads)
+        self.num_policy_heads = int(max(1, num_policy_heads if self.use_specialized_policy_heads else 1))
+        self.policy_heads = nn.ModuleList(
+            [orthogonal_init(nn.Linear(actor_body_dim, action_dim), std=0.01) for _ in range(self.num_policy_heads)]
+        )
+        self.use_specialized_value_heads = bool(use_specialized_value_heads)
+        self.num_value_heads = int(max(1, num_policy_heads if self.use_specialized_value_heads else 1))
+        self.value_heads = nn.ModuleList(
+            [orthogonal_init(nn.Linear(critic_body_dim, 1), std=1.0) for _ in range(self.num_value_heads)]
+        )
 
     def encode(self, obs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         shared = self.encoder(obs)
         return shared, shared
 
-    def forward(self, obs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self,
+        obs: torch.Tensor,
+        head_indices: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         actor_features, critic_features = self.encode(obs)
         actor_features = self.actor_body(actor_features)
         critic_features = self.critic_body(critic_features)
-        logits = self.policy_head(actor_features)
-        value = self.value_head(critic_features).squeeze(-1)
+        logits = combine_head_outputs(self.policy_heads, actor_features, head_indices)
+        value = combine_head_outputs(self.value_heads, critic_features, head_indices).squeeze(-1)
         return logits, value
 
-    def get_value(self, obs: torch.Tensor) -> torch.Tensor:
-        _, value = self.forward(obs)
+    def get_value(self, obs: torch.Tensor, head_indices: torch.Tensor | None = None) -> torch.Tensor:
+        _, value = self.forward(obs, head_indices=head_indices)
         return value
 
     def get_action_and_value(
         self,
         obs: torch.Tensor,
         action: torch.Tensor | None = None,
+        action_mask: torch.Tensor | None = None,
+        head_indices: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        logits, value = self.forward(obs)
+        logits, value = self.forward(obs, head_indices=head_indices)
+        logits = apply_action_mask(logits, action_mask)
         dist = Categorical(logits=logits)
 
         if action is None:
@@ -229,8 +288,11 @@ class ActorCritic(nn.Module):
         self,
         obs: torch.Tensor,
         deterministic: bool = False,
+        action_mask: torch.Tensor | None = None,
+        head_indices: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        logits, value = self.forward(obs)
+        logits, value = self.forward(obs, head_indices=head_indices)
+        logits = apply_action_mask(logits, action_mask)
         dist = Categorical(logits=logits)
 
         if deterministic:

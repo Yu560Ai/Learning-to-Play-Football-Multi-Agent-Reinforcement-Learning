@@ -1,18 +1,27 @@
 from __future__ import annotations
 
-import sys
 import shutil
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
+from xjiang_football.features import build_tactical_features, extract_feature_metrics
 from xjiang_football.rewards import RewardShapingConfig, compute_shaped_reward, extract_step_metrics
+from xjiang_football.utils import (
+    NUM_TACTICAL_ACTIONS,
+    ControlledRoleMap,
+    build_controlled_role_map,
+    tactical_mode_indices,
+    policy_head_indices,
+    tactical_action_mask,
+    translate_tactical_actions,
+)
 
 
 def _project_root() -> Path:
-    # X_Jiang/xjiang_football/envs.py -> project root
     return Path(__file__).resolve().parents[2]
 
 
@@ -36,17 +45,10 @@ def _ensure_engine_fonts(football_root: Path) -> None:
 def ensure_local_gfootball_path() -> Path:
     football_root = _football_source_root()
     _ensure_engine_fonts(football_root)
-
-    candidate_paths = [
-        football_root,
-        football_root / "third_party",
-    ]
-
-    for path in candidate_paths:
+    for path in (football_root, football_root / "third_party"):
         path_str = str(path)
         if path.exists() and path_str not in sys.path:
             sys.path.insert(0, path_str)
-
     return football_root
 
 
@@ -76,35 +78,14 @@ def _ensure_gym_compatibility() -> None:
         import gymnasium as gymnasium  # type: ignore
     except ImportError:
         return
-
-    # Last-resort import compatibility so error messages stay actionable even
-    # when only gymnasium is present. Full training still prefers real gym.
     sys.modules.setdefault("gym", gymnasium)
 
 
 def import_football_env():
     ensure_local_gfootball_path()
     _ensure_gym_compatibility()
-    try:
-        import gfootball.env as football_env  # type: ignore
-    except ImportError as exc:
-        football_root = _football_source_root()
-        extra_hint = ""
-        if "gym" in str(exc):
-            extra_hint = (
-                " The local football source tree was found, but neither `gym` "
-                "nor a compatible `gymnasium` alias could be imported."
-            )
-        elif "gfootball_engine" in str(exc):
-            extra_hint = (
-                " The Python package path is visible, but the compiled "
-                "`gfootball_engine` module is missing, so the football engine "
-                "still needs to be built or installed."
-            )
-        raise ImportError(
-            "Could not import gfootball from the local football source tree at "
-            f"{football_root}.{extra_hint}"
-        ) from exc
+    import gfootball.env as football_env  # type: ignore
+
     return football_env
 
 
@@ -133,9 +114,15 @@ class FootballEnvWrapper:
     ) -> None:
         self._requested_num_players = num_controlled_players
         self.reward_shaping = reward_shaping or RewardShapingConfig()
+        self.role_map = ControlledRoleMap(
+            controlled_indices=np.zeros(0, dtype=np.int64),
+            role_ids=np.zeros(0, dtype=np.int64),
+            role_names=tuple(),
+            goalkeeper_controlled=False,
+        )
+
         config_options = dict(other_config_options or {})
         if write_video:
-            # GFootball only persists replay videos when a dump is also enabled.
             config_options.setdefault("dump_full_episodes", True)
 
         football_env = import_football_env()
@@ -151,40 +138,21 @@ class FootballEnvWrapper:
             channel_dimensions=channel_dimensions,
             other_config_options=config_options,
         )
+        self.spec = self._bootstrap_spec()
 
-        self.spec = self._infer_spec()
-
-    def _infer_spec(self) -> EnvSpec:
-        observation_space = self.env.observation_space
-        action_space = self.env.action_space
-
-        full_obs_shape = tuple(int(dim) for dim in observation_space.shape)
-
-        if self._requested_num_players == 1:
-            num_players = 1
-            obs_shape = full_obs_shape
-            obs_dim = int(np.prod(obs_shape))
-        elif len(full_obs_shape) == 1:
-            num_players = 1
-            obs_shape = full_obs_shape
-            obs_dim = obs_shape[0]
-        else:
-            num_players = full_obs_shape[0]
-            obs_shape = full_obs_shape[1:]
-            obs_dim = int(np.prod(obs_shape))
-
-        if hasattr(action_space, "n"):
-            action_dim = int(action_space.n)
-        elif hasattr(action_space, "nvec"):
-            action_dim = int(action_space.nvec[0])
-        else:
-            raise TypeError(f"Unsupported action space: {action_space!r}")
-
+    def _bootstrap_spec(self) -> EnvSpec:
+        self.env.reset()
+        raw_observation = self.get_raw_observation()
+        self._sync_role_map(raw_observation)
+        tactical_obs = build_tactical_features(raw_observation, role_map=self.role_map)
+        obs_shape = tuple(int(dim) for dim in tactical_obs.shape[1:])
+        obs_dim = int(np.prod(obs_shape))
+        inferred_players = max(int(tactical_obs.shape[0]), min(self._requested_num_players, int(tactical_obs.shape[0] or 1)))
         return EnvSpec(
             obs_dim=obs_dim,
             obs_shape=obs_shape,
-            action_dim=action_dim,
-            num_players=num_players,
+            action_dim=NUM_TACTICAL_ACTIONS,
+            num_players=inferred_players,
         )
 
     @property
@@ -204,30 +172,42 @@ class FootballEnvWrapper:
         return self.spec.obs_shape
 
     def reset(self) -> np.ndarray:
-        observation = self.env.reset()
-        return self._format_observation(observation)
+        self.env.reset()
+        raw_observation = self.get_raw_observation()
+        self._sync_role_map(raw_observation)
+        return self._build_observation(raw_observation)
 
     def step(
         self,
         actions: np.ndarray | list[int] | int,
     ) -> tuple[np.ndarray, np.ndarray, bool, dict[str, Any]]:
         previous_raw = self.get_raw_observation()
-        action_input = self._format_action(actions)
-        observation, reward, done, info = self.env.step(action_input)
+        low_level_action = translate_tactical_actions(actions, previous_raw, self.role_map)
+        _, reward, done, info = self.env.step(low_level_action)
         next_raw = self.get_raw_observation()
+        self._sync_role_map(next_raw)
 
-        formatted_obs = self._format_observation(observation)
+        formatted_obs = self._build_observation(next_raw)
         formatted_reward = self._format_reward(reward)
+        tactical_actions = np.asarray(actions, dtype=np.int64).reshape(self.num_players)
 
         info_dict = dict(info or {})
-        shaped_bonus, shaping_info = compute_shaped_reward(previous_raw, next_raw, self.reward_shaping)
-        if shaped_bonus != 0.0:
-            formatted_reward = formatted_reward + np.float32(shaped_bonus)
+        shaped_bonus, shaping_info = compute_shaped_reward(
+            previous_raw_observation=previous_raw,
+            next_raw_observation=next_raw,
+            tactical_actions=tactical_actions,
+            role_map=self.role_map,
+            config=self.reward_shaping,
+        )
+        if shaped_bonus.size > 0:
+            formatted_reward = formatted_reward + shaped_bonus.astype(np.float32)
 
-        info_dict["reward_bonus"] = float(shaped_bonus)
-        info_dict.update(extract_step_metrics(next_raw))
+        info_dict["reward_bonus"] = float(np.mean(shaped_bonus)) if shaped_bonus.size > 0 else 0.0
+        info_dict["controlled_role_names"] = list(self.role_map.role_names)
+        info_dict["controlled_indices"] = self.role_map.controlled_indices.tolist()
+        info_dict["tactical_actions"] = tactical_actions.tolist()
+        info_dict.update(extract_step_metrics(next_raw, role_map=self.role_map))
         info_dict.update(shaping_info)
-
         return formatted_obs, formatted_reward, bool(done), info_dict
 
     def close(self) -> None:
@@ -235,10 +215,8 @@ class FootballEnvWrapper:
             self.env.close()
 
     def sample_random_action(self) -> np.ndarray | int:
-        sample = self.env.action_space.sample()
-        if self.num_players == 1:
-            return int(sample)
-        return np.asarray(sample, dtype=np.int64).reshape(self.num_players)
+        sample = np.random.randint(0, NUM_TACTICAL_ACTIONS, size=self.num_players, dtype=np.int64)
+        return int(sample[0]) if self.num_players == 1 else sample
 
     def get_raw_observation(self) -> Any:
         base_env = getattr(self.env, "unwrapped", self.env)
@@ -255,23 +233,35 @@ class FootballEnvWrapper:
             return int(left_score), int(right_score)
         return None
 
-    def _format_observation(self, observation: Any) -> np.ndarray:
-        array = np.asarray(observation, dtype=np.float32)
-        if self.num_players == 1:
-            return array.reshape(1, self.obs_dim)
-        if array.ndim == 1:
-            array = np.expand_dims(array, axis=0)
-        return array.reshape(self.num_players, self.obs_dim)
+    def get_role_ids(self) -> np.ndarray:
+        return self.role_map.role_ids.copy()
+
+    def get_role_names(self) -> tuple[str, ...]:
+        return self.role_map.role_names
+
+    def get_action_mask(self, raw_observation: Any | None = None) -> np.ndarray:
+        raw = self.get_raw_observation() if raw_observation is None else raw_observation
+        return tactical_action_mask(raw, self.role_map)
+
+    def get_policy_head_indices(self, raw_observation: Any | None = None) -> np.ndarray:
+        raw = self.get_raw_observation() if raw_observation is None else raw_observation
+        return policy_head_indices(raw, self.role_map)
+
+    def get_tactical_mode_indices(self, raw_observation: Any | None = None) -> np.ndarray:
+        raw = self.get_raw_observation() if raw_observation is None else raw_observation
+        return tactical_mode_indices(raw, self.role_map)
+
+    def _sync_role_map(self, raw_observation: Any) -> None:
+        self.role_map = build_controlled_role_map(raw_observation, requested_players=self._requested_num_players)
+
+    def _build_observation(self, raw_observation: Any) -> np.ndarray:
+        features = build_tactical_features(raw_observation, role_map=self.role_map)
+        return np.asarray(features, dtype=np.float32).reshape(self.num_players, self.obs_dim)
 
     def _format_reward(self, reward: Any) -> np.ndarray:
         array = np.asarray(reward, dtype=np.float32)
         if array.ndim == 0:
             array = np.expand_dims(array, axis=0)
+        if array.size == 1 and self.num_players > 1:
+            array = np.repeat(array, self.num_players)
         return array.reshape(self.num_players)
-
-    def _format_action(self, actions: np.ndarray | list[int] | int) -> list[int] | int:
-        if self.num_players == 1:
-            if isinstance(actions, (list, tuple, np.ndarray)):
-                return int(np.asarray(actions).reshape(-1)[0])
-            return int(actions)
-        return np.asarray(actions, dtype=np.int64).reshape(self.num_players).tolist()

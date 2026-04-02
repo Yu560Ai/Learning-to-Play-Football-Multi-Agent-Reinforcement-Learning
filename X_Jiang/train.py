@@ -11,7 +11,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--preset",
         type=str,
-        default="five_v_five_debug",
+        default="five_v_five_tactical_debug",
         choices=sorted(PRESETS.keys()),
         help="Preset configuration name.",
     )
