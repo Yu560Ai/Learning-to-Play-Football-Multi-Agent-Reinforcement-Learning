@@ -126,8 +126,8 @@ Later, for broader evaluation, add:
 | Stage 1 | `academy_run_to_score_with_keeper` | Not started | Not evaluated | n/a | n/a |
 | Stage 2 | `academy_pass_and_shoot_with_keeper` | Completed | Not passed | `2026-04-01 14:38:39` to `14:53:03` | `update_10.pt` |
 | Stage 3 | `academy_3_vs_1_with_keeper` | Stopped early | Not passed | `2026-04-01 17:10:58` to `17:24:56` | none |
-| Stage 4 | `five_vs_five` | In progress | Not evaluated | `2026-04-01 17:25` to active | current run |
-| Stage 5 | `five_vs_five` | Not started | Not evaluated | n/a | n/a |
+| Stage 4 | `five_vs_five` | Completed | Not passed | `2026-04-01 17:25` to `2026-04-01 20:19` | `update_860.pt` |
+| Stage 5 | `five_vs_five` | Completed | Not passed | `2026-04-01 20:23` to `2026-04-02 00:02` | none |
 
 ## Stage Passing Criteria
 
@@ -590,25 +590,131 @@ Operational conclusion:
 
 ### Stage 5
 
-#### Planned Command Template
+#### Actual Follow-Up Runs
 
 ```bash
 .venv_yfu_grf_sys/bin/python Y_Fu/train.py \
   --preset five_vs_five \
-  --num-envs 6 \
+  --num-envs 4 \
   --rollout-steps 256 \
   --total-timesteps 10000000 \
   --save-interval 10 \
   --update-epochs 4 \
   --num-minibatches 1 \
-  --init-checkpoint <best_stage4_checkpoint> \
+  --init-checkpoint Y_Fu/checkpoints/academy_pass_and_shoot_with_keeper/update_10.pt \
   --seed 42
 ```
 
-Optional scale-up if stable:
+Follow-up variants that were actually run:
 
-- raise `total_timesteps` toward `40_000_000`
-- test `num_envs=8` only if throughput improves without instability
+- reward-only revision:
+  - [five_vs_five_reward_v1_e4](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/checkpoints/five_vs_five_reward_v1_e4)
+- reward revision + `player_id`:
+  - [five_vs_five_player_id_v1b](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/checkpoints/five_vs_five_player_id_v1b)
+
+#### Operational Outcome
+
+- the reward-only revision did not show enough early improvement
+- the `player_id` run was then launched as the next low-intrusion structural change
+- the `player_id` run was intended to be stopped around `5M` if no clear improvement appeared
+- in practice, it was allowed to continue overnight and reached the full `10M` budget
+
+#### Final `player_id` Evaluation
+
+Checkpoint:
+
+- [latest.pt](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/checkpoints/five_vs_five_player_id_v1b/latest.pt)
+
+Command:
+
+```bash
+.venv_yfu_grf_sys/bin/python Y_Fu/evaluate.py \
+  --checkpoint Y_Fu/checkpoints/five_vs_five_player_id_v1b/latest.pt \
+  --episodes 5 \
+  --deterministic \
+  --device cpu \
+  --seed 123
+```
+
+Result:
+
+- trained policy: `avg_return=0.437 avg_score_reward=-1.400 avg_goal_diff=-1.400 win_rate=0.000 avg_length=3001.0`
+
+Interpretation:
+
+- `player_id` improved some behavior-level diagnostics during training
+- it reduced the most extreme single-direction collapse compared with the older `five_vs_five` failure run
+- but it still did not convert into actual football success
+- goals remained at `0`
+- deterministic evaluation remained full-length losing games
+
+#### Behavior-Diagnostic Summary
+
+Observed during the `player_id` run:
+
+- `right_bias` improved from the earlier `0.68 ~ 0.75` collapse region down toward roughly `0.56 ~ 0.62` for meaningful stretches
+- `pass_rate` and `shot_rate` briefly improved, but not enough to create reliable attack completion
+- later logs still showed degenerate action mixtures dominated by directional movement, release actions, and weak skill usage
+
+Verdict:
+
+- `run completed`
+- `stage not passed`
+- `player_id` alone is not enough
+
+#### Representative Video
+
+Directory:
+
+- [five_vs_five_player_id_v1b_latest_seed123](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/videos/stage_log/five_vs_five_player_id_v1b_latest_seed123)
+
+Files:
+
+- [episode_done_20260402-105452418350.avi](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/videos/stage_log/five_vs_five_player_id_v1b_latest_seed123/episode_done_20260402-105452418350.avi)
+- [episode_done_20260402-105452418350.dump](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/videos/stage_log/five_vs_five_player_id_v1b_latest_seed123/episode_done_20260402-105452418350.dump)
+
+Single-episode video result:
+
+- `score=0-1`
+- `avg_goal_diff=-1.000`
+- `win_rate=0.000`
+- `length=3001`
+
+#### Next Operational Pivot
+
+Current decision after the failed `five_vs_five` reward and `player_id` line:
+
+- pause the main `five_vs_five` PPO exploration
+- return to Academy for a controlled reboot
+- start from fresh Academy checkpoints instead of inheriting the failed `five_vs_five` policy
+
+Immediate next run:
+
+- `academy_pass_and_shoot_with_keeper`
+- fresh start
+- `use_player_id=True`
+- no-ball action filter enabled
+
+Reason:
+
+- this is the most controllable task for verifying passing validity, receive-and-finish behavior, and whether invalid no-ball pass spam is actually reduced
+
+#### Pause State 2026-04-02
+
+Training was then paused intentionally for the day after the initial reboot setup.
+
+Before pausing:
+
+- the no-ball action filter fix had been implemented and smoke-tested
+- the Academy reboot had produced a resumable checkpoint
+
+Resume point:
+
+- [update_5.pt](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/checkpoints/academy_pass_reboot_v1/update_5.pt)
+
+Reference note:
+
+- [ACADEMY_REBOOT_PAUSE_NOTE_2026-04-02.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/ACADEMY_REBOOT_PAUSE_NOTE_2026-04-02.md)
 
 ## Related Files
 

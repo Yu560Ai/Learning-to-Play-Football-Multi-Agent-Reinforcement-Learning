@@ -60,6 +60,10 @@ def _reward_shaping_from_config(config: dict[str, Any]) -> RewardShapingConfig:
     )
 
 
+def _zero_reward_shaping() -> RewardShapingConfig:
+    return RewardShapingConfig()
+
+
 def load_checkpoint_policy(
     checkpoint_path: str,
     device: torch.device,
@@ -74,6 +78,9 @@ def load_checkpoint_policy(
             obs_shape=tuple(checkpoint.get("obs_shape", (checkpoint["obs_dim"],))),
             model_type=config.get("model_type", "auto"),
             feature_dim=int(config.get("feature_dim", 256)),
+            player_id_dim=int(config.get("num_players", config.get("num_controlled_players", 0)))
+            if bool(config.get("use_player_id", False))
+            else 0,
         )
         model.load_state_dict(checkpoint["model_state_dict"])
         model.to(device)
@@ -286,7 +293,10 @@ def _sample_actions_from_model(
     )
     with torch.no_grad():
         if isinstance(model, ActorCritic):
-            logits, _ = model.forward(obs_tensor)
+            player_ids = None
+            if getattr(model, "player_id_dim", 0) > 0:
+                player_ids = torch.arange(num_players, dtype=torch.int64, device=device).repeat(num_envs)
+            logits, _ = model.forward(obs_tensor, player_ids=player_ids)
         else:
             logits = model.policy_logits(obs_tensor) / max(float(model.config.temperature), 1e-6)
         distribution = Categorical(logits=logits)
@@ -352,7 +362,7 @@ def main() -> None:
         logdir="",
         num_controlled_players=num_controlled_players,
         channel_dimensions=channel_dimensions,
-        reward_shaping=_reward_shaping_from_config(checkpoint_config),
+        reward_shaping=_zero_reward_shaping(),
     )
 
     writer = ChunkWriter(
@@ -517,6 +527,23 @@ def main() -> None:
         "num_controlled_players": num_controlled_players,
         "channel_dimensions": list(channel_dimensions),
         "reward_shaping": {
+            "pass_success_reward": 0.0,
+            "pass_failure_penalty": 0.0,
+            "pass_progress_reward_scale": 0.0,
+            "shot_attempt_reward": 0.0,
+            "attacking_possession_reward": 0.0,
+            "attacking_x_threshold": 0.55,
+            "final_third_entry_reward": 0.0,
+            "possession_retention_reward": 0.0,
+            "possession_recovery_reward": 0.0,
+            "defensive_third_recovery_reward": 0.0,
+            "opponent_attacking_possession_penalty": 0.0,
+            "own_half_turnover_penalty": 0.0,
+            "own_half_x_threshold": 0.0,
+            "defensive_x_threshold": -0.45,
+            "pending_pass_horizon": 8,
+        },
+        "source_checkpoint_reward_shaping": {
             "pass_success_reward": float(checkpoint_config.get("pass_success_reward", 0.0)),
             "pass_failure_penalty": float(checkpoint_config.get("pass_failure_penalty", 0.0)),
             "pass_progress_reward_scale": float(checkpoint_config.get("pass_progress_reward_scale", 0.0)),

@@ -21,6 +21,41 @@ Current practical priority order:
 2. use `academy_*` only as curriculum or diagnostics
 3. treat `11v11` as lower priority unless extra time remains
 
+## Current Summary
+
+The current `Y_Fu` line changed in an important way on `2026-04-02`.
+
+The main takeaways are:
+
+- the long `five_vs_five` PPO line still did not become good football
+- reward-only revision and `player_id` both improved some behavior diagnostics, but still did not produce reliable match outcomes
+- a no-ball action-validity bug was identified and fixed:
+  - non-ball players no longer execute `pass` / `shot` / `dribble`
+  - PPO now stores executed actions rather than only sampled actions
+- behavior logging was extended with more football-process metrics
+- the current roadmap therefore pauses blind `five_vs_five` continuation and returns to an Academy reboot with cleaner action semantics
+
+If you want the shortest explanation of this pivot, start with:
+
+- [PPO_POSTMORTEM.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/PPO_POSTMORTEM.md)
+- [ACADEMY_REBOOT_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/ACADEMY_REBOOT_PLAN.md)
+- [ACADEMY_REBOOT_PAUSE_NOTE_2026-04-02.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/ACADEMY_REBOOT_PAUSE_NOTE_2026-04-02.md)
+
+## Next Plan
+
+The immediate next plan is:
+
+1. resume the Academy reboot from the saved `academy_pass_and_shoot_with_keeper` checkpoint
+2. verify that invalid no-ball pass / shot / dribble behavior stays low under the new action filter
+3. use the reboot run to judge whether `player_id` plus valid-action cleanup actually improves real pass-to-shot behavior
+4. only after that, decide between:
+   - a fresh `five_vs_five_reward_v2` ablation, or
+   - another Academy stage handoff into `five_vs_five`
+
+The practical rule is:
+
+- do not spend another long `five_vs_five` PPO budget until the Academy reboot looks behaviorally cleaner
+
 ## Document Map
 
 Use this section as the main index for the markdown files under `Y_Fu/`.
@@ -40,6 +75,10 @@ Use this section as the main index for the markdown files under `Y_Fu/`.
   - current hybrid `academy PPO -> 5v5 PPO -> 5v5 offline RL` schedule and resource plan
 - [ACADEMY_TO_5V5_BOOTSTRAP_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/ACADEMY_TO_5V5_BOOTSTRAP_PLAN.md)
   - why Academy should be used as a primitive-learning bootstrap before `5v5`
+- [ACADEMY_REBOOT_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/ACADEMY_REBOOT_PLAN.md)
+  - current pivot: pause the failing `five_vs_five` PPO line and return to controlled Academy diagnosis
+- [ACADEMY_REBOOT_PAUSE_NOTE_2026-04-02.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/ACADEMY_REBOOT_PAUSE_NOTE_2026-04-02.md)
+  - current pause status, completed simple tests, and the exact resume command for the Academy reboot
 - [FIVE_V_FIVE_HALF_DAY_CHECKLIST.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/FIVE_V_FIVE_HALF_DAY_CHECKLIST.md)
   - `5M / 10M / 20M` checkpoint criteria for the current `five_vs_five` run
 - [FIVE_V_FIVE_EXECUTION_CHECKLIST.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/FIVE_V_FIVE_EXECUTION_CHECKLIST.md)
@@ -49,6 +88,14 @@ Use this section as the main index for the markdown files under `Y_Fu/`.
 
 ### Reward Design And PPO Reasoning
 
+- [PPO_POSTMORTEM.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/PPO_POSTMORTEM.md)
+  - postmortem of the current PPO line, plus a football-like reward design direction that is harder to game
+- [FIVE_V_FIVE_REWARD_V2_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/FIVE_V_FIVE_REWARD_V2_PLAN.md)
+  - concrete next `five_vs_five` reward preset centered on attack quality and transition discipline
+- [FIVE_V_FIVE_REWARD_V2_ABLATION_TABLE.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/FIVE_V_FIVE_REWARD_V2_ABLATION_TABLE.md)
+  - small controlled ablation across attack-quality, transition-discipline, and progression-focused reward variants
+- [FIVE_V_FIVE_REWARD_ABLATION_RUNBOOK.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/FIVE_V_FIVE_REWARD_ABLATION_RUNBOOK.md)
+  - operating sequence, stop rules, and a logging template for running the reward-v2 ablation cleanly
 - [REWARD_SHAPING_KEY_IDEA.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/REWARD_SHAPING_KEY_IDEA.md)
   - explains how reward shaping affects PPO through `return -> advantage -> actor/critic update`
 - [REWARD_REVISION_PROPOSAL.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/REWARD_REVISION_PROPOSAL.md)
@@ -57,6 +104,8 @@ Use this section as the main index for the markdown files under `Y_Fu/`.
   - diagnosis of the "10M steps and still garbage" failure pattern, plus a prioritized sweep of possible fixes
 - [BEHAVIOR_DIAGNOSTICS_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/BEHAVIOR_DIAGNOSTICS_PLAN.md)
   - why behavior-level metrics like `pass_rate` and `right_bias` are now tracked for degenerate-policy detection
+- [NO_BALL_ACTION_FILTER_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/NO_BALL_ACTION_FILTER_PLAN.md)
+  - why no-ball `pass` / `shot` / `dribble` actions are now filtered and how PPO is aligned to executed actions
 - [TRAINING_FAILURE_ARCHIVE.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/TRAINING_FAILURE_ARCHIVE.md)
   - compact archive of past failure cases and the rule learned from each one
 
@@ -66,6 +115,8 @@ Use this section as the main index for the markdown files under `Y_Fu/`.
   - two-layer roadmap: low-cost methods first, more systematic methods later
 - [MARL_ROADMAP_SPEC.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/MARL_ROADMAP_SPEC.md)
   - broader multi-agent stage roadmap
+- [ACADEMY_TO_5V5_DECISION_TREE.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/ACADEMY_TO_5V5_DECISION_TREE.md)
+  - post-PPO decision tree and a breakdown of what Academy can and cannot realistically teach
 - [RESEARCH_TODO_SPEC.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/RESEARCH_TODO_SPEC.md)
   - how outside papers should be used to improve the `Y_Fu` line
 
@@ -102,11 +153,11 @@ If you only want the current active line, read these in order:
 
 1. [SPEC.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/SPEC.md)
 2. [TRAINING_STAGE_LOG.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/TRAINING_STAGE_LOG.md)
-3. [THREE_DAY_5V5_TRAINING_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/THREE_DAY_5V5_TRAINING_PLAN.md)
-4. [ACADEMY_TO_5V5_BOOTSTRAP_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/ACADEMY_TO_5V5_BOOTSTRAP_PLAN.md)
-5. [PPO_OFFLINE_RL_INTEGRATION_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/PPO_OFFLINE_RL_INTEGRATION_PLAN.md)
-6. [OFFLINE_RL_COMMANDS.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/OFFLINE_RL_COMMANDS.md)
-7. [PPO_IQL_EXECUTION_CHECKLIST.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/PPO_IQL_EXECUTION_CHECKLIST.md)
+3. [PPO_POSTMORTEM.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/PPO_POSTMORTEM.md)
+4. [ACADEMY_REBOOT_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/ACADEMY_REBOOT_PLAN.md)
+5. [ACADEMY_REBOOT_PAUSE_NOTE_2026-04-02.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/ACADEMY_REBOOT_PAUSE_NOTE_2026-04-02.md)
+6. [NO_BALL_ACTION_FILTER_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/NO_BALL_ACTION_FILTER_PLAN.md)
+7. [FIVE_V_FIVE_REWARD_V2_PLAN.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/FIVE_V_FIVE_REWARD_V2_PLAN.md)
 8. [TRAINING_FAILURE_ARCHIVE.md](/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Y_Fu/TRAINING_FAILURE_ARCHIVE.md)
 
 ## What Is Implemented

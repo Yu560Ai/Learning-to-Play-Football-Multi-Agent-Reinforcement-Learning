@@ -12,6 +12,9 @@ import numpy as np
 
 PASS_ACTIONS = {9, 10, 11}
 SHOT_ACTION = 12
+DRIBBLE_ACTION = 17
+IDLE_ACTION = 0
+BALL_REQUIRED_ACTIONS = PASS_ACTIONS | {SHOT_ACTION, DRIBBLE_ACTION}
 
 
 def _project_root() -> Path:
@@ -168,20 +171,22 @@ class FootballEnvWrapper:
     def step(self, actions: np.ndarray | list[int] | int) -> tuple[np.ndarray, np.ndarray, bool, dict[str, Any]]:
         action_input = self._format_action(actions)
         previous_raw = self.get_raw_observation()
-        observation, reward, done, info = self.env.step(action_input)
+        executed_actions, action_filter_info = self._sanitize_no_ball_actions(previous_raw, action_input)
+        observation, reward, done, info = self.env.step(executed_actions)
         next_raw = self.get_raw_observation()
         formatted_obs = self._format_observation(observation)
         formatted_reward = self._format_reward(reward)
         shaped_reward, shaping_info = self._compute_custom_reward(
             previous_raw=previous_raw,
             next_raw=next_raw,
-            actions=action_input,
+            actions=executed_actions,
             done=bool(done),
         )
         if shaped_reward != 0.0:
             formatted_reward = formatted_reward + shaped_reward
-        if shaping_info:
+        if action_filter_info or shaping_info:
             info = dict(info)
+            info.update(action_filter_info)
             info.update(shaping_info)
         return formatted_obs, formatted_reward, bool(done), info
 
@@ -238,6 +243,59 @@ class FootballEnvWrapper:
                 return first
         return None
 
+    def _player_has_ball(self, raw_observation: dict[str, Any]) -> bool:
+        active_player = int(raw_observation.get("active", -1))
+        return (
+            int(raw_observation.get("ball_owned_team", -1)) == 0
+            and int(raw_observation.get("ball_owned_player", -1)) == active_player
+        )
+
+    def _sanitize_no_ball_actions(
+        self,
+        raw_observation: Any,
+        actions: list[int] | int,
+    ) -> tuple[list[int] | int, dict[str, Any]]:
+        action_list = [int(actions)] if isinstance(actions, int) else [int(action) for action in actions]
+        sanitized_actions = list(action_list)
+
+        invalid_no_ball_pass_count = 0
+        invalid_no_ball_shot_count = 0
+        invalid_no_ball_dribble_count = 0
+
+        raw_list = raw_observation if isinstance(raw_observation, list) else []
+        for player_index, action in enumerate(action_list):
+            player_raw = raw_list[player_index] if player_index < len(raw_list) else None
+            if not isinstance(player_raw, dict):
+                continue
+            if action not in BALL_REQUIRED_ACTIONS:
+                continue
+            if self._player_has_ball(player_raw):
+                continue
+
+            if action in PASS_ACTIONS:
+                invalid_no_ball_pass_count += 1
+            elif action == SHOT_ACTION:
+                invalid_no_ball_shot_count += 1
+            elif action == DRIBBLE_ACTION:
+                invalid_no_ball_dribble_count += 1
+            sanitized_actions[player_index] = IDLE_ACTION
+
+        invalid_ball_skill_count = (
+            invalid_no_ball_pass_count + invalid_no_ball_shot_count + invalid_no_ball_dribble_count
+        )
+        filter_info: dict[str, Any] = {
+            "executed_actions": (
+                int(sanitized_actions[0]) if self.num_players == 1 else list(sanitized_actions)
+            ),
+            "invalid_ball_skill_count": float(invalid_ball_skill_count),
+            "invalid_no_ball_pass_count": float(invalid_no_ball_pass_count),
+            "invalid_no_ball_shot_count": float(invalid_no_ball_shot_count),
+            "invalid_no_ball_dribble_count": float(invalid_no_ball_dribble_count),
+        }
+        if self.num_players == 1:
+            return int(sanitized_actions[0]), filter_info
+        return sanitized_actions, filter_info
+
     def _ball_x(self, raw_observation: dict[str, Any]) -> float:
         ball = raw_observation.get("ball", [0.0])
         if isinstance(ball, (list, tuple, np.ndarray)) and len(ball) > 0:
@@ -251,9 +309,6 @@ class FootballEnvWrapper:
         actions: list[int] | int,
         done: bool,
     ) -> tuple[float, dict[str, float]]:
-        if self.reward_shaping == RewardShapingConfig():
-            return 0.0, {}
-
         prev = self._primary_raw_observation(previous_raw)
         nxt = self._primary_raw_observation(next_raw)
         if prev is None or nxt is None:
@@ -261,7 +316,7 @@ class FootballEnvWrapper:
             return 0.0, {}
 
         reward_bonus = 0.0
-        shaping_info: dict[str, float] = {}
+        shaping_info = self._football_event_info(prev, nxt, actions, done)
         action_list = [int(actions)] if isinstance(actions, int) else [int(a) for a in actions]
         active_index = int(prev.get("active", -1))
         prev_owned_team = int(prev.get("ball_owned_team", -1))
@@ -378,7 +433,88 @@ class FootballEnvWrapper:
             reward_bonus -= self.reward_shaping.opponent_attacking_possession_penalty
             shaping_info["opponent_attacking_possession_penalty"] = -self.reward_shaping.opponent_attacking_possession_penalty
 
+        if self.reward_shaping == RewardShapingConfig():
+            return 0.0, shaping_info
         return reward_bonus, shaping_info
+
+    def _football_event_info(
+        self,
+        prev: dict[str, Any],
+        nxt: dict[str, Any],
+        actions: list[int] | int,
+        done: bool,
+    ) -> dict[str, float]:
+        action_list = [int(actions)] if isinstance(actions, int) else [int(a) for a in actions]
+        active_index = int(prev.get("active", -1))
+        prev_owned_team = int(prev.get("ball_owned_team", -1))
+        prev_owned_player = int(prev.get("ball_owned_player", -1))
+        next_owned_team = int(nxt.get("ball_owned_team", -1))
+        next_owned_player = int(nxt.get("ball_owned_player", -1))
+        prev_ball_x = self._ball_x(prev)
+        next_ball_x = self._ball_x(nxt)
+
+        if 0 <= active_index < len(action_list):
+            active_action = action_list[active_index]
+        else:
+            active_action = None
+
+        pass_attempt = 1.0 if (
+            active_action in PASS_ACTIONS
+            and prev_owned_team == 0
+            and prev_owned_player == active_index
+        ) else 0.0
+        pass_success = 1.0 if (
+            self._pending_pass is not None
+            and next_owned_team == 0
+            and next_owned_player != -1
+            and next_owned_player != int(self._pending_pass.get("from_player", -1))
+        ) else 0.0
+        shot_attempt = 1.0 if (
+            active_action == SHOT_ACTION
+            and prev_owned_team == 0
+            and prev_owned_player == active_index
+        ) else 0.0
+        attacking_possession = 1.0 if (
+            prev_owned_team == 0
+            and float(prev.get("ball", [0.0])[0]) >= self.reward_shaping.attacking_x_threshold
+        ) else 0.0
+        final_third_entry = 1.0 if (
+            next_owned_team == 0
+            and prev_ball_x < self.reward_shaping.attacking_x_threshold
+            and next_ball_x >= self.reward_shaping.attacking_x_threshold
+        ) else 0.0
+        possession_retention = 1.0 if prev_owned_team == 0 and next_owned_team == 0 else 0.0
+        own_half_turnover = 1.0 if (
+            prev_owned_team == 0
+            and next_owned_team == 1
+            and prev_ball_x <= self.reward_shaping.own_half_x_threshold
+        ) else 0.0
+        possession_recovery = 1.0 if prev_owned_team != 0 and next_owned_team == 0 else 0.0
+        defensive_third_recovery = 1.0 if (
+            prev_owned_team == 1
+            and next_owned_team == 0
+            and prev_ball_x <= self.reward_shaping.defensive_x_threshold
+        ) else 0.0
+        opponent_dangerous_possession = 1.0 if (
+            next_owned_team == 1
+            and next_ball_x <= self.reward_shaping.defensive_x_threshold
+        ) else 0.0
+        progress_delta = max(0.0, next_ball_x - prev_ball_x)
+
+        return {
+            "pass_attempt_event": pass_attempt,
+            "pass_success_event": pass_success,
+            "pass_progress_delta": progress_delta,
+            "shot_attempt_event": shot_attempt,
+            "attacking_possession_event": attacking_possession,
+            "final_third_entry_event": final_third_entry,
+            "possession_retention_event": possession_retention,
+            "own_half_turnover_event": own_half_turnover,
+            "possession_recovery_event": possession_recovery,
+            "defensive_third_recovery_event": defensive_third_recovery,
+            "opponent_dangerous_possession_event": opponent_dangerous_possession,
+            "episode_done_event": 1.0 if done else 0.0,
+        }
 
 
 def _build_env_kwargs(

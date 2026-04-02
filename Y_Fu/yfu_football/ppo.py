@@ -42,10 +42,16 @@ RIGHTWARD_ACTIONS = {4, 5, 6}
 LEFTWARD_ACTIONS = {1, 2, 8}
 UPWARD_ACTIONS = {2, 3, 4}
 DOWNWARD_ACTIONS = {6, 7, 8}
-PASS_ACTIONS = {9, 10, 11}
+LONG_PASS_ACTIONS = {9}
+HIGH_PASS_ACTIONS = {10}
+SHORT_PASS_ACTIONS = {11}
+PASS_ACTIONS = LONG_PASS_ACTIONS | HIGH_PASS_ACTIONS | SHORT_PASS_ACTIONS
 SHOT_ACTIONS = {12}
 BALL_SKILL_ACTIONS = {9, 10, 11, 12, 17}
 IDLE_ACTIONS = {0}
+RELEASE_DIRECTION_ACTIONS = {14}
+SPRINT_ACTIONS = {13}
+DRIBBLE_ACTIONS = {17}
 
 
 @dataclass
@@ -227,6 +233,103 @@ PRESET_OVERRIDES: dict[str, dict[str, Any]] = {
         "save_dir": "Y_Fu/checkpoints/five_vs_five",
         "logdir": "Y_Fu/logs/five_vs_five",
     },
+    "five_vs_five_reward_v2": {
+        "env_name": "5_vs_5",
+        "representation": "extracted",
+        "model_type": "cnn",
+        "feature_dim": 256,
+        "rewards": "scoring,checkpoints",
+        "num_controlled_players": 4,
+        "channel_dimensions": (42, 42),
+        "total_timesteps": 250_000,
+        "rollout_steps": 512,
+        "update_epochs": 4,
+        "num_minibatches": 4,
+        "learning_rate": 2.5e-4,
+        "hidden_sizes": (256, 256),
+        # Reward v2 is intentionally narrower and more football-process oriented.
+        # It rewards getting into danger and converting danger into shots while
+        # keeping the strongest clearly attributable transition penalty.
+        "pass_success_reward": 0.02,
+        "pass_failure_penalty": 0.02,
+        "pass_progress_reward_scale": 0.02,
+        "shot_attempt_reward": 0.08,
+        "attacking_possession_reward": 0.0,
+        "final_third_entry_reward": 0.08,
+        "possession_retention_reward": 0.0,
+        "possession_recovery_reward": 0.01,
+        "defensive_third_recovery_reward": 0.015,
+        "opponent_attacking_possession_penalty": 0.0,
+        "own_half_turnover_penalty": 0.02,
+        "own_half_x_threshold": 0.0,
+        "save_interval": 10,
+        "save_dir": "Y_Fu/checkpoints/five_vs_five_reward_v2",
+        "logdir": "Y_Fu/logs/five_vs_five_reward_v2",
+    },
+    "five_vs_five_reward_v2b_transition": {
+        "env_name": "5_vs_5",
+        "representation": "extracted",
+        "model_type": "cnn",
+        "feature_dim": 256,
+        "rewards": "scoring,checkpoints",
+        "num_controlled_players": 4,
+        "channel_dimensions": (42, 42),
+        "total_timesteps": 250_000,
+        "rollout_steps": 512,
+        "update_epochs": 4,
+        "num_minibatches": 4,
+        "learning_rate": 2.5e-4,
+        "hidden_sizes": (256, 256),
+        # Transition-focused variant: slightly weaker pass incentives, slightly
+        # stronger turnover discipline and defensive recovery.
+        "pass_success_reward": 0.015,
+        "pass_failure_penalty": 0.02,
+        "pass_progress_reward_scale": 0.015,
+        "shot_attempt_reward": 0.08,
+        "attacking_possession_reward": 0.0,
+        "final_third_entry_reward": 0.08,
+        "possession_retention_reward": 0.0,
+        "possession_recovery_reward": 0.01,
+        "defensive_third_recovery_reward": 0.02,
+        "opponent_attacking_possession_penalty": 0.0,
+        "own_half_turnover_penalty": 0.03,
+        "own_half_x_threshold": 0.0,
+        "save_interval": 10,
+        "save_dir": "Y_Fu/checkpoints/five_vs_five_reward_v2b_transition",
+        "logdir": "Y_Fu/logs/five_vs_five_reward_v2b_transition",
+    },
+    "five_vs_five_reward_v2c_progression": {
+        "env_name": "5_vs_5",
+        "representation": "extracted",
+        "model_type": "cnn",
+        "feature_dim": 256,
+        "rewards": "scoring,checkpoints",
+        "num_controlled_players": 4,
+        "channel_dimensions": (42, 42),
+        "total_timesteps": 250_000,
+        "rollout_steps": 512,
+        "update_epochs": 4,
+        "num_minibatches": 4,
+        "learning_rate": 2.5e-4,
+        "hidden_sizes": (256, 256),
+        # Progression-focused variant: still avoids generic possession reward,
+        # but tests whether line-breaking progress deserves slightly more credit.
+        "pass_success_reward": 0.02,
+        "pass_failure_penalty": 0.02,
+        "pass_progress_reward_scale": 0.035,
+        "shot_attempt_reward": 0.07,
+        "attacking_possession_reward": 0.0,
+        "final_third_entry_reward": 0.07,
+        "possession_retention_reward": 0.0,
+        "possession_recovery_reward": 0.01,
+        "defensive_third_recovery_reward": 0.015,
+        "opponent_attacking_possession_penalty": 0.0,
+        "own_half_turnover_penalty": 0.02,
+        "own_half_x_threshold": 0.0,
+        "save_interval": 10,
+        "save_dir": "Y_Fu/checkpoints/five_vs_five_reward_v2c_progression",
+        "logdir": "Y_Fu/logs/five_vs_five_reward_v2c_progression",
+    },
     "small_11v11": {
         "env_name": "11_vs_11_easy_stochastic",
         "representation": "simple115v2",
@@ -370,10 +473,28 @@ def _summarize_action_usage(action_buffer: np.ndarray, action_dim: int) -> dict[
     left_count = int(sum(counts[action] for action in LEFTWARD_ACTIONS if action < len(counts)))
     up_count = int(sum(counts[action] for action in UPWARD_ACTIONS if action < len(counts)))
     down_count = int(sum(counts[action] for action in DOWNWARD_ACTIONS if action < len(counts)))
+    long_pass_count = int(sum(counts[action] for action in LONG_PASS_ACTIONS if action < len(counts)))
+    high_pass_count = int(sum(counts[action] for action in HIGH_PASS_ACTIONS if action < len(counts)))
+    short_pass_count = int(sum(counts[action] for action in SHORT_PASS_ACTIONS if action < len(counts)))
     pass_count = int(sum(counts[action] for action in PASS_ACTIONS if action < len(counts)))
     shot_count = int(sum(counts[action] for action in SHOT_ACTIONS if action < len(counts)))
     skill_count = int(sum(counts[action] for action in BALL_SKILL_ACTIONS if action < len(counts)))
     idle_count = int(sum(counts[action] for action in IDLE_ACTIONS if action < len(counts)))
+    release_direction_count = int(sum(counts[action] for action in RELEASE_DIRECTION_ACTIONS if action < len(counts)))
+    sprint_count = int(sum(counts[action] for action in SPRINT_ACTIONS if action < len(counts)))
+    dribble_count = int(sum(counts[action] for action in DRIBBLE_ACTIONS if action < len(counts)))
+
+    directional_counts = np.asarray(
+        [counts[action] for action in sorted(DIRECTIONAL_ACTIONS) if action < len(counts)],
+        dtype=np.float32,
+    )
+    if directional_count > 0:
+        directional_probs = directional_counts / float(directional_count)
+        direction_entropy = float(-np.sum(np.where(directional_probs > 0.0, directional_probs * np.log(directional_probs), 0.0)))
+        normalized_direction_entropy = direction_entropy / math.log(len(directional_probs))
+    else:
+        direction_entropy = 0.0
+        normalized_direction_entropy = 0.0
 
     ranked_actions = sorted(
         ((action_id, int(count)) for action_id, count in enumerate(counts)),
@@ -389,14 +510,55 @@ def _summarize_action_usage(action_buffer: np.ndarray, action_dim: int) -> dict[
 
     return {
         "pass_rate": _safe_fraction(pass_count, total_actions),
+        "long_pass_rate": _safe_fraction(long_pass_count, total_actions),
+        "high_pass_rate": _safe_fraction(high_pass_count, total_actions),
+        "short_pass_rate": _safe_fraction(short_pass_count, total_actions),
         "shot_rate": _safe_fraction(shot_count, total_actions),
         "skill_rate": _safe_fraction(skill_count, total_actions),
         "idle_rate": _safe_fraction(idle_count, total_actions),
+        "release_direction_rate": _safe_fraction(release_direction_count, total_actions),
+        "sprint_rate": _safe_fraction(sprint_count, total_actions),
+        "dribble_rate": _safe_fraction(dribble_count, total_actions),
         "direction_rate": _safe_fraction(directional_count, total_actions),
         "right_bias": _safe_fraction(right_count, directional_count),
         "left_bias": _safe_fraction(left_count, directional_count),
+        "up_bias": _safe_fraction(up_count, directional_count),
+        "down_bias": _safe_fraction(down_count, directional_count),
+        "non_right_direction_rate": _safe_fraction(directional_count - right_count, directional_count),
+        "dominant_action_share": _safe_fraction(ranked_actions[0][1], total_actions) if ranked_actions else 0.0,
+        "direction_entropy": direction_entropy,
+        "direction_entropy_norm": normalized_direction_entropy,
         "vertical_bias": _safe_fraction(abs(up_count - down_count), directional_count),
         "top_actions": ",".join(top_actions) if top_actions else "n/a",
+    }
+
+
+def _extract_executed_actions(
+    infos: Sequence[dict[str, Any]],
+    sampled_actions: np.ndarray,
+    num_players: int,
+) -> tuple[np.ndarray, dict[str, float]]:
+    executed_actions = np.asarray(sampled_actions, dtype=np.int64).copy()
+    invalid_ball_skill_count = 0.0
+    invalid_no_ball_pass_count = 0.0
+    invalid_no_ball_shot_count = 0.0
+    invalid_no_ball_dribble_count = 0.0
+
+    for env_index, info in enumerate(infos):
+        info_dict = dict(info or {})
+        env_executed_actions = info_dict.get("executed_actions")
+        if env_executed_actions is not None:
+            executed_actions[env_index] = np.asarray(env_executed_actions, dtype=np.int64).reshape(num_players)
+        invalid_ball_skill_count += float(info_dict.get("invalid_ball_skill_count", 0.0))
+        invalid_no_ball_pass_count += float(info_dict.get("invalid_no_ball_pass_count", 0.0))
+        invalid_no_ball_shot_count += float(info_dict.get("invalid_no_ball_shot_count", 0.0))
+        invalid_no_ball_dribble_count += float(info_dict.get("invalid_no_ball_dribble_count", 0.0))
+
+    return executed_actions, {
+        "invalid_ball_skill_count": invalid_ball_skill_count,
+        "invalid_no_ball_pass_count": invalid_no_ball_pass_count,
+        "invalid_no_ball_shot_count": invalid_no_ball_shot_count,
+        "invalid_no_ball_dribble_count": invalid_no_ball_dribble_count,
     }
 
 
@@ -471,6 +633,15 @@ class PPOTrainer:
         self.current_episode_return = np.zeros(self.env.num_envs, dtype=np.float32)
         self.current_episode_score_reward = np.zeros(self.env.num_envs, dtype=np.float32)
         self.current_episode_length = np.zeros(self.env.num_envs, dtype=np.int32)
+        self.current_episode_pass_attempts = np.zeros(self.env.num_envs, dtype=np.float32)
+        self.current_episode_pass_successes = np.zeros(self.env.num_envs, dtype=np.float32)
+        self.current_episode_pass_progress = np.zeros(self.env.num_envs, dtype=np.float32)
+        self.current_episode_shot_attempts = np.zeros(self.env.num_envs, dtype=np.float32)
+        self.current_episode_final_third_entries = np.zeros(self.env.num_envs, dtype=np.float32)
+        self.current_episode_own_half_turnovers = np.zeros(self.env.num_envs, dtype=np.float32)
+        self.current_episode_possession_recoveries = np.zeros(self.env.num_envs, dtype=np.float32)
+        self.current_episode_defensive_third_recoveries = np.zeros(self.env.num_envs, dtype=np.float32)
+        self.current_episode_opponent_dangerous_possessions = np.zeros(self.env.num_envs, dtype=np.float32)
         self.player_id_matrix = np.broadcast_to(
             np.arange(self.env.num_players, dtype=np.int64),
             (self.env.num_envs, self.env.num_players),
@@ -547,6 +718,19 @@ class PPOTrainer:
         completed_score_rewards: list[float] = []
         completed_successes: list[float] = []
         completed_scores: list[tuple[int, int]] = []
+        completed_pass_attempts: list[float] = []
+        completed_pass_successes: list[float] = []
+        completed_pass_progress: list[float] = []
+        completed_shot_attempts: list[float] = []
+        completed_final_third_entries: list[float] = []
+        completed_own_half_turnovers: list[float] = []
+        completed_possession_recoveries: list[float] = []
+        completed_defensive_third_recoveries: list[float] = []
+        completed_opponent_dangerous_possessions: list[float] = []
+        invalid_ball_skill_count_total = 0.0
+        invalid_no_ball_pass_count_total = 0.0
+        invalid_no_ball_shot_count_total = 0.0
+        invalid_no_ball_dribble_count_total = 0.0
 
         for step in range(steps):
             obs_buffer[step] = observation
@@ -558,20 +742,76 @@ class PPOTrainer:
                 device=self.device,
             )
             with torch.no_grad():
-                actions, logprobs, values = self.model.act(obs_tensor, player_ids=player_ids_tensor)
+                actions, _, values = self.model.act(obs_tensor, player_ids=player_ids_tensor)
 
-            action_np = actions.cpu().numpy().reshape(num_envs, num_players)
-            next_observation, reward, done, infos = self.env.step(action_np)
+            sampled_action_np = actions.cpu().numpy().reshape(num_envs, num_players)
+            next_observation, reward, done, infos = self.env.step(sampled_action_np)
+            executed_action_np, invalid_action_counts = _extract_executed_actions(
+                infos,
+                sampled_action_np,
+                num_players,
+            )
+            executed_action_tensor = torch.as_tensor(
+                executed_action_np.reshape(num_envs * num_players),
+                dtype=torch.int64,
+                device=self.device,
+            )
+            with torch.no_grad():
+                _, executed_logprobs, _, _ = self.model.get_action_and_value(
+                    obs_tensor,
+                    player_ids=player_ids_tensor,
+                    action=executed_action_tensor,
+                )
 
-            action_buffer[step] = action_np
-            logprob_buffer[step] = logprobs.cpu().numpy().reshape(num_envs, num_players)
+            action_buffer[step] = executed_action_np
+            logprob_buffer[step] = executed_logprobs.cpu().numpy().reshape(num_envs, num_players)
             value_buffer[step] = values.cpu().numpy().reshape(num_envs, num_players)
             reward_buffer[step] = reward
             done_buffer[step] = done
+            invalid_ball_skill_count_total += invalid_action_counts["invalid_ball_skill_count"]
+            invalid_no_ball_pass_count_total += invalid_action_counts["invalid_no_ball_pass_count"]
+            invalid_no_ball_shot_count_total += invalid_action_counts["invalid_no_ball_shot_count"]
+            invalid_no_ball_dribble_count_total += invalid_action_counts["invalid_no_ball_dribble_count"]
 
             self.current_episode_return += reward.mean(axis=1)
             self.current_episode_score_reward += np.asarray(
                 [float(info.get("score_reward", 0.0)) for info in infos],
+                dtype=np.float32,
+            )
+            self.current_episode_pass_attempts += np.asarray(
+                [float(info.get("pass_attempt_event", 0.0)) for info in infos],
+                dtype=np.float32,
+            )
+            self.current_episode_pass_successes += np.asarray(
+                [float(info.get("pass_success_event", 0.0)) for info in infos],
+                dtype=np.float32,
+            )
+            self.current_episode_pass_progress += np.asarray(
+                [float(info.get("pass_progress_delta", 0.0)) for info in infos],
+                dtype=np.float32,
+            )
+            self.current_episode_shot_attempts += np.asarray(
+                [float(info.get("shot_attempt_event", 0.0)) for info in infos],
+                dtype=np.float32,
+            )
+            self.current_episode_final_third_entries += np.asarray(
+                [float(info.get("final_third_entry_event", 0.0)) for info in infos],
+                dtype=np.float32,
+            )
+            self.current_episode_own_half_turnovers += np.asarray(
+                [float(info.get("own_half_turnover_event", 0.0)) for info in infos],
+                dtype=np.float32,
+            )
+            self.current_episode_possession_recoveries += np.asarray(
+                [float(info.get("possession_recovery_event", 0.0)) for info in infos],
+                dtype=np.float32,
+            )
+            self.current_episode_defensive_third_recoveries += np.asarray(
+                [float(info.get("defensive_third_recovery_event", 0.0)) for info in infos],
+                dtype=np.float32,
+            )
+            self.current_episode_opponent_dangerous_possessions += np.asarray(
+                [float(info.get("opponent_dangerous_possession_event", 0.0)) for info in infos],
                 dtype=np.float32,
             )
             self.current_episode_length += 1
@@ -595,9 +835,29 @@ class PPOTrainer:
                 completed_lengths.append(int(self.current_episode_length[env_index]))
                 completed_score_rewards.append(float(self.current_episode_score_reward[env_index]))
                 completed_successes.append(success)
+                completed_pass_attempts.append(float(self.current_episode_pass_attempts[env_index]))
+                completed_pass_successes.append(float(self.current_episode_pass_successes[env_index]))
+                completed_pass_progress.append(float(self.current_episode_pass_progress[env_index]))
+                completed_shot_attempts.append(float(self.current_episode_shot_attempts[env_index]))
+                completed_final_third_entries.append(float(self.current_episode_final_third_entries[env_index]))
+                completed_own_half_turnovers.append(float(self.current_episode_own_half_turnovers[env_index]))
+                completed_possession_recoveries.append(float(self.current_episode_possession_recoveries[env_index]))
+                completed_defensive_third_recoveries.append(float(self.current_episode_defensive_third_recoveries[env_index]))
+                completed_opponent_dangerous_possessions.append(
+                    float(self.current_episode_opponent_dangerous_possessions[env_index])
+                )
                 self.current_episode_return[env_index] = 0.0
                 self.current_episode_score_reward[env_index] = 0.0
                 self.current_episode_length[env_index] = 0
+                self.current_episode_pass_attempts[env_index] = 0.0
+                self.current_episode_pass_successes[env_index] = 0.0
+                self.current_episode_pass_progress[env_index] = 0.0
+                self.current_episode_shot_attempts[env_index] = 0.0
+                self.current_episode_final_third_entries[env_index] = 0.0
+                self.current_episode_own_half_turnovers[env_index] = 0.0
+                self.current_episode_possession_recoveries[env_index] = 0.0
+                self.current_episode_defensive_third_recoveries[env_index] = 0.0
+                self.current_episode_opponent_dangerous_possessions[env_index] = 0.0
 
         with torch.no_grad():
             last_values = self.model.get_value(
@@ -640,6 +900,11 @@ class PPOTrainer:
             else "n/a"
         )
         action_usage = _summarize_action_usage(action_buffer, self.env.action_dim)
+        total_actions = float(action_buffer.size)
+        total_completed_pass_attempts = float(np.sum(completed_pass_attempts)) if completed_pass_attempts else 0.0
+        total_completed_pass_successes = float(np.sum(completed_pass_successes)) if completed_pass_successes else 0.0
+        total_completed_final_third_entries = float(np.sum(completed_final_third_entries)) if completed_final_third_entries else 0.0
+        total_completed_shot_attempts = float(np.sum(completed_shot_attempts)) if completed_shot_attempts else 0.0
         metrics = {
             "episodes_finished": float(len(completed_returns)),
             "mean_episode_return": float(np.mean(completed_returns)) if completed_returns else float("nan"),
@@ -651,14 +916,46 @@ class PPOTrainer:
             "mean_goals_against": float(np.mean([right for _, right in completed_scores])) if completed_scores else float("nan"),
             "score_examples": score_examples,
             "success_rate": float(np.mean(completed_successes)) if completed_successes else float("nan"),
+            "mean_pass_attempts": float(np.mean(completed_pass_attempts)) if completed_pass_attempts else float("nan"),
+            "mean_pass_successes": float(np.mean(completed_pass_successes)) if completed_pass_successes else float("nan"),
+            "pass_success_per_attempt": _safe_fraction(total_completed_pass_successes, total_completed_pass_attempts),
+            "mean_pass_progress": float(np.mean(completed_pass_progress)) if completed_pass_progress else float("nan"),
+            "mean_shot_attempt_events": float(np.mean(completed_shot_attempts)) if completed_shot_attempts else float("nan"),
+            "mean_final_third_entries": float(np.mean(completed_final_third_entries)) if completed_final_third_entries else float("nan"),
+            "shot_per_final_third_entry": _safe_fraction(
+                total_completed_shot_attempts,
+                total_completed_final_third_entries,
+            ),
+            "mean_own_half_turnovers": float(np.mean(completed_own_half_turnovers)) if completed_own_half_turnovers else float("nan"),
+            "mean_possession_recoveries": float(np.mean(completed_possession_recoveries)) if completed_possession_recoveries else float("nan"),
+            "mean_defensive_third_recoveries": float(np.mean(completed_defensive_third_recoveries)) if completed_defensive_third_recoveries else float("nan"),
+            "mean_opponent_dangerous_possessions": float(np.mean(completed_opponent_dangerous_possessions))
+            if completed_opponent_dangerous_possessions
+            else float("nan"),
             "pass_rate": float(action_usage["pass_rate"]),
+            "long_pass_rate": float(action_usage["long_pass_rate"]),
+            "high_pass_rate": float(action_usage["high_pass_rate"]),
+            "short_pass_rate": float(action_usage["short_pass_rate"]),
             "shot_rate": float(action_usage["shot_rate"]),
             "skill_rate": float(action_usage["skill_rate"]),
             "idle_rate": float(action_usage["idle_rate"]),
+            "release_direction_rate": float(action_usage["release_direction_rate"]),
+            "sprint_rate": float(action_usage["sprint_rate"]),
+            "dribble_rate": float(action_usage["dribble_rate"]),
             "direction_rate": float(action_usage["direction_rate"]),
             "right_bias": float(action_usage["right_bias"]),
             "left_bias": float(action_usage["left_bias"]),
+            "up_bias": float(action_usage["up_bias"]),
+            "down_bias": float(action_usage["down_bias"]),
+            "non_right_direction_rate": float(action_usage["non_right_direction_rate"]),
+            "dominant_action_share": float(action_usage["dominant_action_share"]),
+            "direction_entropy": float(action_usage["direction_entropy"]),
+            "direction_entropy_norm": float(action_usage["direction_entropy_norm"]),
             "vertical_bias": float(action_usage["vertical_bias"]),
+            "invalid_ball_skill_rate": _safe_fraction(invalid_ball_skill_count_total, total_actions),
+            "invalid_no_ball_pass_rate": _safe_fraction(invalid_no_ball_pass_count_total, total_actions),
+            "invalid_no_ball_shot_rate": _safe_fraction(invalid_no_ball_shot_count_total, total_actions),
+            "invalid_no_ball_dribble_rate": _safe_fraction(invalid_no_ball_dribble_count_total, total_actions),
             "top_actions": str(action_usage["top_actions"]),
         }
         return observation, batch, metrics
@@ -806,6 +1103,53 @@ class PPOTrainer:
                         if math.isfinite(rollout_metrics["mean_score_reward"])
                         else "n/a"
                     )
+                    mean_pass_attempts_text = (
+                        f"{rollout_metrics['mean_pass_attempts']:.2f}"
+                        if math.isfinite(rollout_metrics["mean_pass_attempts"])
+                        else "n/a"
+                    )
+                    mean_pass_successes_text = (
+                        f"{rollout_metrics['mean_pass_successes']:.2f}"
+                        if math.isfinite(rollout_metrics["mean_pass_successes"])
+                        else "n/a"
+                    )
+                    pass_success_per_attempt_text = f"{rollout_metrics['pass_success_per_attempt']:.2f}"
+                    mean_pass_progress_text = (
+                        f"{rollout_metrics['mean_pass_progress']:.2f}"
+                        if math.isfinite(rollout_metrics["mean_pass_progress"])
+                        else "n/a"
+                    )
+                    mean_shot_attempt_events_text = (
+                        f"{rollout_metrics['mean_shot_attempt_events']:.2f}"
+                        if math.isfinite(rollout_metrics["mean_shot_attempt_events"])
+                        else "n/a"
+                    )
+                    mean_final_third_entries_text = (
+                        f"{rollout_metrics['mean_final_third_entries']:.2f}"
+                        if math.isfinite(rollout_metrics["mean_final_third_entries"])
+                        else "n/a"
+                    )
+                    shot_per_final_third_entry_text = f"{rollout_metrics['shot_per_final_third_entry']:.2f}"
+                    mean_own_half_turnovers_text = (
+                        f"{rollout_metrics['mean_own_half_turnovers']:.2f}"
+                        if math.isfinite(rollout_metrics["mean_own_half_turnovers"])
+                        else "n/a"
+                    )
+                    mean_possession_recoveries_text = (
+                        f"{rollout_metrics['mean_possession_recoveries']:.2f}"
+                        if math.isfinite(rollout_metrics["mean_possession_recoveries"])
+                        else "n/a"
+                    )
+                    mean_defensive_third_recoveries_text = (
+                        f"{rollout_metrics['mean_defensive_third_recoveries']:.2f}"
+                        if math.isfinite(rollout_metrics["mean_defensive_third_recoveries"])
+                        else "n/a"
+                    )
+                    mean_opponent_dangerous_possessions_text = (
+                        f"{rollout_metrics['mean_opponent_dangerous_possessions']:.2f}"
+                        if math.isfinite(rollout_metrics["mean_opponent_dangerous_possessions"])
+                        else "n/a"
+                    )
                     success_text = (
                         f"{rollout_metrics['success_rate']:.3f}"
                         if math.isfinite(rollout_metrics["success_rate"])
@@ -822,13 +1166,27 @@ class PPOTrainer:
                         else "n/a"
                     )
                     pass_rate_text = f"{rollout_metrics['pass_rate']:.2f}"
+                    long_pass_rate_text = f"{rollout_metrics['long_pass_rate']:.2f}"
+                    high_pass_rate_text = f"{rollout_metrics['high_pass_rate']:.2f}"
+                    short_pass_rate_text = f"{rollout_metrics['short_pass_rate']:.2f}"
                     shot_rate_text = f"{rollout_metrics['shot_rate']:.2f}"
                     skill_rate_text = f"{rollout_metrics['skill_rate']:.2f}"
                     idle_rate_text = f"{rollout_metrics['idle_rate']:.2f}"
+                    release_direction_rate_text = f"{rollout_metrics['release_direction_rate']:.2f}"
+                    sprint_rate_text = f"{rollout_metrics['sprint_rate']:.2f}"
+                    dribble_rate_text = f"{rollout_metrics['dribble_rate']:.2f}"
                     direction_rate_text = f"{rollout_metrics['direction_rate']:.2f}"
                     right_bias_text = f"{rollout_metrics['right_bias']:.2f}"
                     left_bias_text = f"{rollout_metrics['left_bias']:.2f}"
+                    up_bias_text = f"{rollout_metrics['up_bias']:.2f}"
+                    down_bias_text = f"{rollout_metrics['down_bias']:.2f}"
+                    non_right_direction_rate_text = f"{rollout_metrics['non_right_direction_rate']:.2f}"
+                    dominant_action_share_text = f"{rollout_metrics['dominant_action_share']:.2f}"
+                    direction_entropy_norm_text = f"{rollout_metrics['direction_entropy_norm']:.2f}"
                     vertical_bias_text = f"{rollout_metrics['vertical_bias']:.2f}"
+                    invalid_ball_skill_rate_text = f"{rollout_metrics['invalid_ball_skill_rate']:.2f}"
+                    invalid_no_ball_pass_rate_text = f"{rollout_metrics['invalid_no_ball_pass_rate']:.2f}"
+                    invalid_no_ball_shot_rate_text = f"{rollout_metrics['invalid_no_ball_shot_rate']:.2f}"
                     print(
                         f"[update {update}/{num_updates}] "
                         f"envs={self.env.num_envs} "
@@ -842,17 +1200,42 @@ class PPOTrainer:
                         f"episodes_finished={int(rollout_metrics['episodes_finished'])} "
                         f"episode_return={return_text} "
                         f"score_reward={score_reward_text} "
+                        f"pass_attempts_ep={mean_pass_attempts_text} "
+                        f"pass_successes_ep={mean_pass_successes_text} "
+                        f"pass_success_per_attempt={pass_success_per_attempt_text} "
+                        f"pass_progress_ep={mean_pass_progress_text} "
+                        f"final_third_entries_ep={mean_final_third_entries_text} "
+                        f"shot_attempt_events_ep={mean_shot_attempt_events_text} "
+                        f"shot_per_final_third_entry={shot_per_final_third_entry_text} "
+                        f"own_half_turnovers_ep={mean_own_half_turnovers_text} "
+                        f"possession_recoveries_ep={mean_possession_recoveries_text} "
+                        f"defensive_third_recoveries_ep={mean_defensive_third_recoveries_text} "
+                        f"opponent_dangerous_possessions_ep={mean_opponent_dangerous_possessions_text} "
                         f"goals_for={goals_for_text} "
                         f"goals_against={goals_against_text} "
                         f"score_examples={rollout_metrics['score_examples']} "
                         f"pass_rate={pass_rate_text} "
+                        f"long_pass_rate={long_pass_rate_text} "
+                        f"high_pass_rate={high_pass_rate_text} "
+                        f"short_pass_rate={short_pass_rate_text} "
                         f"shot_rate={shot_rate_text} "
                         f"skill_rate={skill_rate_text} "
                         f"idle_rate={idle_rate_text} "
+                        f"release_direction_rate={release_direction_rate_text} "
+                        f"sprint_rate={sprint_rate_text} "
+                        f"dribble_rate={dribble_rate_text} "
                         f"direction_rate={direction_rate_text} "
                         f"right_bias={right_bias_text} "
                         f"left_bias={left_bias_text} "
+                        f"up_bias={up_bias_text} "
+                        f"down_bias={down_bias_text} "
+                        f"non_right_direction_rate={non_right_direction_rate_text} "
+                        f"dominant_action_share={dominant_action_share_text} "
+                        f"direction_entropy_norm={direction_entropy_norm_text} "
                         f"vertical_bias={vertical_bias_text} "
+                        f"invalid_ball_skill_rate={invalid_ball_skill_rate_text} "
+                        f"invalid_no_ball_pass_rate={invalid_no_ball_pass_rate_text} "
+                        f"invalid_no_ball_shot_rate={invalid_no_ball_shot_rate_text} "
                         f"top_actions={rollout_metrics['top_actions']} "
                         f"episode_length={length_text} "
                         f"episode_length_range={length_range_text} "
