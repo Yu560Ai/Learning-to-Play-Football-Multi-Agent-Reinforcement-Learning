@@ -15,4 +15,10 @@
   - Video notes: basic spacing and recycling present; attacks stall near wide channels; GK sometimes leaves box.  
   - Action: retrain from scratch to remove ckpt/shape mismatch; continue tuning defensive recovery and forward runs.
 
+- 5v5 continuation from latest.pt (2026-04-02, +100k steps, cpu)  
+  - Setup: resumed from `Y_Yao/checkpoints/five_vs_five/latest.pt`, 49 updates (~100k agent steps), no eval videos yet.  
+  - Outcomes: multiple full-length games still 0-x (examples: 0-3, 0-4, 0-2, 0-1, one 0-0); score_reward ≤ 0 in all finished episodes; success_rate=0.  
+  - Observation: progression and finishing unchanged; shaping + role embedding not enough; continuing plain PPO unlikely to help without method change.  
+  - Action: stop extending this PPO line; move to differentiated routes (attention critic / intent head / possession-budget shaping) before spending more steps.
+
 Note: raw videos/logs stay local (not in repo).

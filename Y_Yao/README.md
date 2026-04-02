@@ -9,6 +9,14 @@ Working directory for Google Research Football (multi-agent).
 - Reward highlights: pass_success +0.20, pass_failure -0.10, pass_progress +0.10, backward_pass -0.02, attacking_possession +0.002, final_third_entry +0.05, recovery +0.06, defensive_third_recovery +0.06, own_half_turnover -0.08, gk_out_of_box -0.02.
 - Status: spacing / build-up improved but progression & finishing still weak; old ckpts are not fully shape-compatible with the newer role-embedding model—retrain 5v5 mainline.
 
+## New MAPPO + Offense Diagnostics (2026-04-02)
+- Centralized critic + value norm on by default; agent-id embeddings with optional per-agent heads to reduce policy collapse.
+- PPO safety: update_epochs<=6, num_minibatches<=1, clip_coef≈0.15.
+- Shaping (light vs goal reward): forward progress / forward pass / final-third entry / shot / on-target bonuses; backward-to-GK, idle-ball, hold-ball penalties.
+- Per-episode metrics logged + moving average in console: shots, shots_on_target, forward_pass_count, backward_pass_to_goalkeeper, final_third_entries, avg_ball_x, goals_scored, goals_conceded, own_half_turnovers, final_third_turnovers, attacking_sequences (enter final third then shoot), reward breakdown (goal/forward_progress/pass/shot/penalty).
+- Run example: `python -m Y_Yao.yyao_football.ppo --preset five_vs_five` (activate `football-env` first).
+- Adjust shaping via CLI flags: `--forward-pass-reward`, `--ball-progress-reward-scale`, `--shot-attempt-reward`, `--shot-on-target-reward`, `--backward-pass-penalty`, `--backward-pass-to-gk-penalty`, `--idle-ball-penalty`, `--ball-hold-penalty`, etc.
+
 ## Quick Commands
 - Train mainline: `python Y_Yao/train.py --preset five_vs_five --device cpu`
 - Evaluate + video: `python Y_Yao/evaluate.py --checkpoint Y_Yao/checkpoints/five_vs_five/latest.pt --episodes 3 --device cpu --save-video --video-dir Y_Yao/videos/five_vs_five`
