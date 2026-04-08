@@ -1,16 +1,13 @@
-# Generated football videos and episode dumps
-Y_Fu/videos/
-Y_Fu/videos_test/
-Arena/videos/
-*.avi
-*.dump
-
+# =========================
 # Python artifacts
+# =========================
 __pycache__/
 *.py[cod]
 *$py.class
 
+# =========================
 # Virtual environments
+# =========================
 venv/
 .env/
 env/
@@ -20,33 +17,89 @@ env/
 football-env-modern/
 football-master/football-env/
 
-# PyCharm
+# =========================
+# IDE / editor
+# =========================
 .idea/
 .vscode/
 
-# Checkpoints and model weights (ignore all except curated best_models folders)
-checkpoints/
-*.pt
-*.pth
-*.ckpt
-
-# Logs, temp, videos
-*.log
-logs/
-log/
-*.tmp
-temp/
-tmp/
-*.mov
-*.mkv
-videos/
-
+# =========================
 # OS generated files
+# =========================
 .DS_Store
 Thumbs.db
 *:Zone.Identifier
 
-# Best models directory is intentionally tracked for curated model share
+# =========================
+# Generated videos / dumps
+# =========================
+*.avi
+*.mov
+*.mkv
+*.dump
+
+Y_Fu/videos/
+Y_Fu/videos_test/
+Arena/videos/
+
+# Catch nested video folders too
+**/videos/
+**/videos_test/
+
+# =========================
+# Model checkpoints / weights
+# =========================
+*.pt
+*.pth
+*.ckpt
+
+Y_Fu/checkpoints/
+Arena/checkpoints/
+**/checkpoints/
+
+# =========================
+# Logs / monitoring / eval outputs
+# =========================
+*.log
+*.tmp
+*.tsv
+
+Y_Fu/logs/
+Y_Fu/log/
+Y_Fu/monitor_logs/
+Y_Fu/eval_runs/
+Y_Fu/launch_logs/
+
+Arena/logs/
+Arena/log/
+
+# Catch nested log-like folders too
+**/logs/
+**/log/
+**/monitor_logs/
+**/eval_runs/
+**/launch_logs/
+
+temp/
+tmp/
+**/temp/
+**/tmp/
+
+# =========================
+# Offline RL generated data
+# =========================
+Y_Fu/offline_data/
+**/offline_data/
+
+# =========================
+# TensorBoard / training events
+# =========================
+events.out.tfevents.*
+**/events.out.tfevents.*
+
+# =========================
+# Curated best models are intentionally tracked
+# =========================
 !best_models/
 !best_models/**
 !**/best_models/

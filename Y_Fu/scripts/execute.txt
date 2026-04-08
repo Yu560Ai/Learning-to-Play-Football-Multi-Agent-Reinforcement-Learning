@@ -1,0 +1,7 @@
+chmod +x Y_Fu/scripts/run_training_with_eta.sh
+
+bash Y_Fu/scripts/run_training_with_eta.sh academy_reboot
+
+bash Y_Fu/scripts/run_training_with_eta.sh fivev5_v2
+bash Y_Fu/scripts/run_training_with_eta.sh fivev5_v2b
+bash Y_Fu/scripts/run_training_with_eta.sh fivev5_v2c
