@@ -1,178 +1,263 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+import torch
 
-from xjiang_football.utils import (
-    ROLE_GK,
-    ROLE_ST,
-    ControlledRoleMap,
-    build_controlled_role_map,
-    clip_unit,
-    distance,
-    normalize_distance,
-    primary_observation,
-    attacking_support_target,
-    role_attack_position,
-    role_home_position,
-    role_one_hot,
-    role_recover_position,
-    role_support_position,
-    safe_ball_direction,
-    safe_ball_xy,
-    safe_owned_player,
-    safe_owned_team,
-    safe_team_directions,
-    safe_team_positions,
+
+@dataclass(frozen=True)
+class Simple115Slices:
+    left_team: slice = slice(0, 22)
+    left_dir: slice = slice(22, 44)
+    right_team: slice = slice(44, 66)
+    right_dir: slice = slice(66, 88)
+    ball_pos: slice = slice(88, 91)
+    ball_dir: slice = slice(91, 94)
+    ball_owner: slice = slice(94, 97)
+    active: slice = slice(97, 108)
+    game_mode: slice = slice(108, 115)
+
+
+SIMPLE115_SLICES = Simple115Slices()
+SIMPLE115_DIM = 115
+MAX_PLAYERS_PER_TEAM = 5
+
+
+def _one_hot(index: int, size: int) -> np.ndarray:
+    vector = np.zeros(size, dtype=np.float32)
+    if 0 <= index < size:
+        vector[index] = 1.0
+    return vector
+
+
+def _safe_player_index(raw_obs: dict[str, Any], key: str, team: np.ndarray) -> int:
+    index = int(raw_obs.get(key, 0))
+    return index if 0 <= index < len(team) else 0
+
+
+def _pad_1d(array: np.ndarray, size: int) -> np.ndarray:
+    flat = np.asarray(array, dtype=np.float32).reshape(-1)
+    if flat.size >= size:
+        return flat[:size]
+    padded = np.zeros(size, dtype=np.float32)
+    padded[: flat.size] = flat
+    return padded
+
+
+def _pad_2d(array: np.ndarray, rows: int, cols: int = 2) -> np.ndarray:
+    matrix = np.asarray(array, dtype=np.float32)
+    if matrix.ndim != 2:
+        matrix = np.zeros((0, cols), dtype=np.float32)
+    matrix = matrix[:, :cols]
+    if matrix.shape[0] >= rows:
+        return matrix[:rows]
+    padded = np.zeros((rows, cols), dtype=np.float32)
+    if matrix.shape[0] > 0:
+        padded[: matrix.shape[0], : matrix.shape[1]] = matrix
+    return padded
+
+
+def _nearest_relative(team: np.ndarray, reference: np.ndarray, *, exclude_index: int | None = None) -> tuple[np.ndarray, np.ndarray]:
+    if exclude_index is not None:
+        mask = np.ones(len(team), dtype=bool)
+        mask[exclude_index] = False
+        candidates = team[mask]
+    else:
+        candidates = team
+    if len(candidates) == 0:
+        return np.zeros(2, dtype=np.float32), np.zeros(1, dtype=np.float32)
+    deltas = candidates - reference
+    distances = np.linalg.norm(deltas, axis=1)
+    idx = int(np.argmin(distances))
+    return deltas[idx].astype(np.float32), np.asarray([distances[idx]], dtype=np.float32)
+
+
+def _compute_offside_flags(raw_obs: dict[str, Any]) -> np.ndarray:
+    left_team_raw = np.asarray(raw_obs.get("left_team", np.zeros((0, 2))), dtype=np.float32)
+    right_team_raw = np.asarray(raw_obs.get("right_team", np.zeros((0, 2))), dtype=np.float32)
+    left_team = _pad_2d(left_team_raw, MAX_PLAYERS_PER_TEAM)
+    right_team = _pad_2d(right_team_raw, MAX_PLAYERS_PER_TEAM)
+    left_active = _pad_1d(raw_obs.get("left_team_active", np.ones(len(left_team_raw))), MAX_PLAYERS_PER_TEAM).astype(bool)
+    right_active = _pad_1d(raw_obs.get("right_team_active", np.ones(len(right_team_raw))), MAX_PLAYERS_PER_TEAM).astype(bool)
+    active_index = _safe_player_index(raw_obs, "active", left_team)
+
+    opponent_x = right_team[right_active, 0]
+    if opponent_x.size == 0:
+        second_last_defender_x = 1.0
+    elif opponent_x.size == 1:
+        second_last_defender_x = float(opponent_x[0])
+    else:
+        second_last_defender_x = float(np.sort(opponent_x)[-2])
+
+    ball = np.asarray(raw_obs.get("ball", np.zeros(3)), dtype=np.float32)
+    ball_x = float(ball[0]) if ball.size > 0 else 0.0
+    offside_line = max(ball_x, second_last_defender_x)
+    flags = np.zeros(MAX_PLAYERS_PER_TEAM, dtype=np.float32)
+    for idx, player in enumerate(left_team[:MAX_PLAYERS_PER_TEAM]):
+        if idx == active_index:
+            continue
+        in_opponent_half = float(player[0]) > 0.0
+        is_ahead = float(player[0]) > offside_line
+        if bool(left_active[idx]) and in_opponent_half and is_ahead:
+            flags[idx] = 1.0
+    return flags
+
+
+def build_engineered_features(raw_obs: dict[str, Any]) -> np.ndarray:
+    left_team_raw = np.asarray(raw_obs.get("left_team", np.zeros((0, 2))), dtype=np.float32)
+    left_dir_raw = np.asarray(raw_obs.get("left_team_direction", np.zeros((0, 2))), dtype=np.float32)
+    right_team_raw = np.asarray(raw_obs.get("right_team", np.zeros((0, 2))), dtype=np.float32)
+    left_team = _pad_2d(left_team_raw, MAX_PLAYERS_PER_TEAM)
+    left_dir = _pad_2d(left_dir_raw, MAX_PLAYERS_PER_TEAM)
+    right_team = _pad_2d(right_team_raw, MAX_PLAYERS_PER_TEAM)
+    left_tired = _pad_1d(raw_obs.get("left_team_tired_factor", np.zeros(len(left_team_raw))), MAX_PLAYERS_PER_TEAM)
+    right_tired = _pad_1d(raw_obs.get("right_team_tired_factor", np.zeros(len(right_team_raw))), MAX_PLAYERS_PER_TEAM)
+    left_yellow = _pad_1d(raw_obs.get("left_team_yellow_card", np.zeros(len(left_team_raw))), MAX_PLAYERS_PER_TEAM)
+    right_yellow = _pad_1d(raw_obs.get("right_team_yellow_card", np.zeros(len(right_team_raw))), MAX_PLAYERS_PER_TEAM)
+    left_roles = _pad_1d(raw_obs.get("left_team_roles", np.zeros(len(left_team_raw))), MAX_PLAYERS_PER_TEAM).astype(np.int64)
+    sticky_actions = np.asarray(raw_obs.get("sticky_actions", np.zeros(10)), dtype=np.float32)
+
+    active_index = _safe_player_index(raw_obs, "active", left_team)
+    active_pos = left_team[active_index]
+    active_dir = left_dir[active_index]
+    active_tired = np.asarray([left_tired[active_index]], dtype=np.float32)
+    active_yellow = np.asarray([left_yellow[active_index]], dtype=np.float32)
+    active_role = _one_hot(int(left_roles[active_index]), 10)
+
+    ball = np.asarray(raw_obs.get("ball", np.zeros(3)), dtype=np.float32)
+    ball_dir = np.asarray(raw_obs.get("ball_direction", np.zeros(3)), dtype=np.float32)
+    ball_relative = ball - np.asarray([active_pos[0], active_pos[1], 0.0], dtype=np.float32)
+
+    own_goal_relative = np.asarray([-1.0 - active_pos[0], -active_pos[1]], dtype=np.float32)
+    opp_goal_relative = np.asarray([1.0 - active_pos[0], -active_pos[1]], dtype=np.float32)
+    nearest_teammate_relative, nearest_teammate_distance = _nearest_relative(left_team, active_pos, exclude_index=active_index)
+    nearest_opponent_relative, nearest_opponent_distance = _nearest_relative(right_team, active_pos)
+    team_centroid_relative = (left_team.mean(axis=0) - active_pos).astype(np.float32)
+    opponent_centroid_relative = (right_team.mean(axis=0) - active_pos).astype(np.float32)
+
+    ball_owned_team = int(raw_obs.get("ball_owned_team", -1))
+    ball_owned_player = int(raw_obs.get("ball_owned_player", -1))
+    ball_owner_one_hot = _one_hot(ball_owned_team + 1, 3)
+    active_has_ball = np.asarray(
+        [1.0 if ball_owned_team == 0 and ball_owned_player == active_index else 0.0],
+        dtype=np.float32,
+    )
+
+    score = raw_obs.get("score", [0, 0])
+    score_diff = np.asarray([np.clip((float(score[0]) - float(score[1])) / 5.0, -1.0, 1.0)], dtype=np.float32)
+    steps_left = float(raw_obs.get("steps_left", 0)) / 3001.0
+
+    features = np.concatenate(
+        [
+            active_pos.astype(np.float32),
+            active_dir.astype(np.float32),
+            active_tired,
+            active_yellow,
+            active_role,
+            ball_relative.astype(np.float32),
+            ball_dir.astype(np.float32),
+            own_goal_relative,
+            opp_goal_relative,
+            nearest_teammate_relative,
+            nearest_teammate_distance,
+            nearest_opponent_relative,
+            nearest_opponent_distance,
+            team_centroid_relative,
+            opponent_centroid_relative,
+            _compute_offside_flags(raw_obs),
+            sticky_actions.astype(np.float32),
+            left_tired.astype(np.float32),
+            right_tired.astype(np.float32),
+            left_yellow.astype(np.float32),
+            right_yellow.astype(np.float32),
+            ball_owner_one_hot,
+            active_has_ball,
+            score_diff,
+            np.asarray([steps_left], dtype=np.float32),
+        ]
+    )
+    return features.astype(np.float32, copy=False)
+
+
+def extract_feature_metrics(raw_observation: Any) -> dict[str, float]:
+    raw_list = raw_observation if isinstance(raw_observation, list) else [raw_observation]
+    active_ball_distances: list[float] = []
+    nearest_teammates: list[float] = []
+    nearest_opponents: list[float] = []
+    progressions: list[float] = []
+    team_spreads: list[float] = []
+    offside_risks: list[float] = []
+
+    for item in raw_list:
+        if not isinstance(item, dict):
+            continue
+        left_team_raw = np.asarray(item.get("left_team", np.zeros((0, 2))), dtype=np.float32)
+        right_team_raw = np.asarray(item.get("right_team", np.zeros((0, 2))), dtype=np.float32)
+        left_team = _pad_2d(left_team_raw, MAX_PLAYERS_PER_TEAM)
+        right_team = _pad_2d(right_team_raw, MAX_PLAYERS_PER_TEAM)
+        active_index = _safe_player_index(item, "active", left_team)
+        active_pos = left_team[active_index]
+        ball = np.asarray(item.get("ball", np.zeros(3)), dtype=np.float32)
+        ball_xy = ball[:2] if ball.size >= 2 else np.zeros(2, dtype=np.float32)
+
+        active_ball_distances.append(float(np.linalg.norm(active_pos - ball_xy)))
+        nearest_teammate = _nearest_relative(left_team, active_pos, exclude_index=active_index)[1]
+        nearest_opponent = _nearest_relative(right_team, active_pos)[1]
+        nearest_teammates.append(float(nearest_teammate[0]) if nearest_teammate.size else 0.0)
+        nearest_opponents.append(float(nearest_opponent[0]) if nearest_opponent.size else 0.0)
+        progressions.append(float(np.clip((float(ball_xy[0]) + 1.0) / 2.0, 0.0, 1.0)))
+        team_spreads.append(float(np.mean(np.std(left_team, axis=0))) if left_team.shape[0] > 1 else 0.0)
+        offside_risks.append(float(np.sum(_compute_offside_flags(item))))
+
+    def _mean(values: list[float], default: float = 0.0) -> float:
+        return float(np.mean(values)) if values else default
+
+    return {
+        "active_player_distance_to_ball": _mean(active_ball_distances, float("nan")),
+        "nearest_teammate_distance": _mean(nearest_teammates, float("nan")),
+        "nearest_opponent_distance": _mean(nearest_opponents, float("nan")),
+        "progression_estimate": _mean(progressions, 0.0),
+        "team_spread": _mean(team_spreads, float("nan")),
+        "offside_risk": _mean(offside_risks, 0.0),
+    }
+
+
+def split_simple115(obs: torch.Tensor) -> dict[str, torch.Tensor]:
+    return {
+        "left_team": obs[:, SIMPLE115_SLICES.left_team],
+        "left_dir": obs[:, SIMPLE115_SLICES.left_dir],
+        "right_team": obs[:, SIMPLE115_SLICES.right_team],
+        "right_dir": obs[:, SIMPLE115_SLICES.right_dir],
+        "ball_state": obs[:, SIMPLE115_SLICES.ball_pos.start : SIMPLE115_SLICES.ball_owner.stop],
+        "active": obs[:, SIMPLE115_SLICES.active],
+        "game_mode": obs[:, SIMPLE115_SLICES.game_mode],
+    }
+
+
+ENGINEERED_FEATURE_DIM = int(
+    build_engineered_features(
+        {
+            "left_team": np.zeros((MAX_PLAYERS_PER_TEAM, 2), dtype=np.float32),
+            "left_team_direction": np.zeros((MAX_PLAYERS_PER_TEAM, 2), dtype=np.float32),
+            "right_team": np.zeros((MAX_PLAYERS_PER_TEAM, 2), dtype=np.float32),
+            "ball": np.zeros(3, dtype=np.float32),
+            "ball_direction": np.zeros(3, dtype=np.float32),
+            "left_team_tired_factor": np.zeros(MAX_PLAYERS_PER_TEAM, dtype=np.float32),
+            "right_team_tired_factor": np.zeros(MAX_PLAYERS_PER_TEAM, dtype=np.float32),
+            "left_team_yellow_card": np.zeros(MAX_PLAYERS_PER_TEAM, dtype=np.float32),
+            "right_team_yellow_card": np.zeros(MAX_PLAYERS_PER_TEAM, dtype=np.float32),
+            "left_team_active": np.ones(MAX_PLAYERS_PER_TEAM, dtype=np.float32),
+            "right_team_active": np.ones(MAX_PLAYERS_PER_TEAM, dtype=np.float32),
+            "left_team_roles": np.zeros(MAX_PLAYERS_PER_TEAM, dtype=np.int64),
+            "sticky_actions": np.zeros(10, dtype=np.float32),
+            "active": 0,
+            "ball_owned_team": -1,
+            "ball_owned_player": -1,
+            "score": [0, 0],
+            "steps_left": 3001,
+        }
+    ).shape[0]
 )
 
-
-def feature_dim() -> int:
-    return 41
-
-
-def extract_feature_metrics(raw_observation: Any, role_map: ControlledRoleMap | None = None) -> dict[str, float]:
-    default = {
-        "goalkeeper_x": float("nan"),
-        "active_player_distance_to_ball": float("nan"),
-        "closest_outfield_distance_to_ball": float("nan"),
-        "second_outfield_distance_to_ball": float("nan"),
-        "team_spread": float("nan"),
-        "progression_estimate": 0.0,
-    }
-    obs = primary_observation(raw_observation)
-    if obs is None:
-        return default
-    if role_map is None:
-        role_map = build_controlled_role_map(raw_observation, requested_players=5)
-    if role_map.controlled_indices.size == 0:
-        return default
-
-    left_team = safe_team_positions(obs, "left_team")
-    ball_xy = safe_ball_xy(obs)
-    owned_player = safe_owned_player(obs)
-    controlled_positions = left_team[role_map.controlled_indices]
-    distances = np.linalg.norm(controlled_positions - ball_xy, axis=1)
-    outfield_mask = role_map.role_ids != ROLE_GK
-    outfield_distances = np.sort(distances[outfield_mask]) if np.any(outfield_mask) else np.asarray([], dtype=np.float32)
-    active_distance = float("nan")
-    if owned_player in role_map.controlled_indices.tolist():
-        slot = int(np.where(role_map.controlled_indices == owned_player)[0][0])
-        active_distance = float(distances[slot])
-    elif distances.size > 0:
-        active_distance = float(np.min(distances))
-
-    goalkeeper_x = float("nan")
-    if np.any(role_map.role_ids == ROLE_GK):
-        goalkeeper_x = float(np.mean(controlled_positions[role_map.role_ids == ROLE_GK, 0]))
-
-    team_spread = float(np.mean(np.std(controlled_positions, axis=0))) if controlled_positions.shape[0] > 1 else 0.0
-    return {
-        "goalkeeper_x": goalkeeper_x,
-        "active_player_distance_to_ball": active_distance,
-        "closest_outfield_distance_to_ball": float(outfield_distances[0]) if outfield_distances.size > 0 else float("nan"),
-        "second_outfield_distance_to_ball": float(outfield_distances[1]) if outfield_distances.size > 1 else float("nan"),
-        "team_spread": team_spread,
-        "progression_estimate": float(np.clip((float(ball_xy[0]) + 1.0) / 2.0, 0.0, 1.0)),
-    }
-
-
-def build_tactical_features(raw_observation: Any, role_map: ControlledRoleMap | None = None) -> np.ndarray:
-    obs = primary_observation(raw_observation)
-    if obs is None:
-        return np.zeros((1, feature_dim()), dtype=np.float32)
-
-    if role_map is None:
-        role_map = build_controlled_role_map(raw_observation, requested_players=5)
-
-    left_team = safe_team_positions(obs, "left_team")
-    right_team = safe_team_positions(obs, "right_team")
-    left_dir = safe_team_directions(obs, "left_team_direction", left_team.shape[0])
-    ball_xy = safe_ball_xy(obs)
-    ball_direction = safe_ball_direction(obs)
-    owned_team = safe_owned_team(obs)
-    owned_player = safe_owned_player(obs)
-    own_team_has_ball = owned_team == 0
-    opponent_has_ball = owned_team == 1
-
-    if role_map.controlled_indices.size == 0:
-        return np.zeros((1, feature_dim()), dtype=np.float32)
-
-    controlled_positions = left_team[role_map.controlled_indices]
-    controlled_ball_distances = np.linalg.norm(controlled_positions - ball_xy, axis=1)
-    sorted_outfield_slots = np.argsort(
-        np.where(role_map.role_ids == ROLE_GK, 1e9, controlled_ball_distances)
-    )
-    closest_slot = int(sorted_outfield_slots[0]) if sorted_outfield_slots.size > 0 else -1
-    second_slot = int(sorted_outfield_slots[1]) if sorted_outfield_slots.size > 1 else -1
-
-    features: list[np.ndarray] = []
-    for slot, (actual_idx, role_id) in enumerate(zip(role_map.controlled_indices.tolist(), role_map.role_ids.tolist())):
-        player_xy = left_team[actual_idx]
-        player_dir = left_dir[actual_idx]
-        rel_ball = ball_xy - player_xy
-        ball_distance = float(np.linalg.norm(rel_ball))
-        nearest_teammate = 0.0
-        if left_team.shape[0] > 1:
-            teammate_positions = np.delete(left_team, actual_idx, axis=0)
-            nearest_teammate = float(np.min(np.linalg.norm(teammate_positions - player_xy, axis=1)))
-        nearest_opponent = 0.0
-        if right_team.shape[0] > 0:
-            nearest_opponent = float(np.min(np.linalg.norm(right_team - player_xy, axis=1)))
-
-        home_target = role_home_position(role_id, ball_xy, own_team_has_ball)
-        support_target = attacking_support_target(obs, actual_idx, role_id, aggressive=False) if own_team_has_ball else role_support_position(role_id, ball_xy, own_team_has_ball)
-        recover_target = role_recover_position(role_id, ball_xy)
-        attack_target = attacking_support_target(obs, actual_idx, role_id, aggressive=True) if own_team_has_ball else role_attack_position(role_id, ball_xy)
-
-        vec = np.concatenate(
-            [
-                role_one_hot(role_id),
-                np.asarray(
-                    [
-                        clip_unit(float(player_xy[0])),
-                        clip_unit(float(player_xy[1])),
-                        clip_unit(float(player_dir[0]), limit=0.15),
-                        clip_unit(float(player_dir[1]), limit=0.15),
-                        clip_unit(float(rel_ball[0])),
-                        clip_unit(float(rel_ball[1])),
-                        normalize_distance(ball_distance),
-                        clip_unit(float(ball_xy[0])),
-                        clip_unit(float(ball_xy[1])),
-                        clip_unit(float(ball_direction[0]), limit=0.2),
-                        clip_unit(float(ball_direction[1]), limit=0.2),
-                        1.0 if own_team_has_ball else 0.0,
-                        1.0 if opponent_has_ball else 0.0,
-                        1.0 if owned_team < 0 else 0.0,
-                        1.0 if owned_player == actual_idx and own_team_has_ball else 0.0,
-                        1.0 if slot == closest_slot else 0.0,
-                        1.0 if slot == second_slot else 0.0,
-                        normalize_distance(nearest_teammate),
-                        normalize_distance(nearest_opponent),
-                        clip_unit(float(home_target[0] - player_xy[0])),
-                        clip_unit(float(home_target[1] - player_xy[1])),
-                        normalize_distance(distance(home_target, player_xy)),
-                        clip_unit(float(support_target[0] - player_xy[0])),
-                        clip_unit(float(support_target[1] - player_xy[1])),
-                        normalize_distance(distance(support_target, player_xy)),
-                        clip_unit(float(recover_target[0] - player_xy[0])),
-                        clip_unit(float(recover_target[1] - player_xy[1])),
-                        normalize_distance(distance(recover_target, player_xy)),
-                        clip_unit(float(attack_target[0] - player_xy[0])),
-                        clip_unit(float(attack_target[1] - player_xy[1])),
-                        normalize_distance(distance(attack_target, player_xy)),
-                        1.0 if player_xy[1] < -0.18 else 0.0,
-                        1.0 if -0.18 <= player_xy[1] <= 0.18 else 0.0,
-                        1.0 if player_xy[1] > 0.18 else 0.0,
-                        1.0 if player_xy[0] < -0.35 else 0.0,
-                        1.0 if -0.35 <= player_xy[0] <= 0.35 else 0.0,
-                        1.0 if player_xy[0] > 0.35 else 0.0,
-                    ],
-                    dtype=np.float32,
-                ),
-            ]
-        )
-        features.append(vec.astype(np.float32))
-
-    return np.stack(features, axis=0)

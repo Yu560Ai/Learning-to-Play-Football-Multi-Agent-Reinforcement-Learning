@@ -11,7 +11,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--preset",
         type=str,
-        default="five_v_five_tactical_debug",
+        default="academy_empty_goal_curriculum",
         choices=sorted(PRESETS.keys()),
         help="Preset configuration name.",
     )
@@ -27,6 +27,18 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional checkpoint path to resume or warm-start training from.",
     )
+    parser.add_argument(
+        "--total-timesteps",
+        type=int,
+        default=None,
+        help="Optional override for total agent timesteps.",
+    )
+    parser.add_argument(
+        "--rollout-steps",
+        type=int,
+        default=None,
+        help="Optional override for rollout steps per update.",
+    )
     return parser.parse_args()
 
 
@@ -36,4 +48,6 @@ if __name__ == "__main__":
         preset_name=args.preset,
         device_override=args.device,
         init_checkpoint_override=args.init_checkpoint,
+        total_timesteps_override=args.total_timesteps,
+        rollout_steps_override=args.rollout_steps,
     )

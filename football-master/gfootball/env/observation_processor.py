@@ -149,6 +149,22 @@ def write_players_state(writer, players_info):
   writer.write_table(table_text, widths, scale_factor=1.0, offset=10)
 
 
+def _display_player_label(team_roles, player_idx):
+  """Return a human-friendly on-video label for a player.
+
+  In single-player academy drills the only visible opponent can be a goalkeeper.
+  Showing that player as "G" is misleading because there is no separate outfield
+  player being tracked. For those one-player teams, render the label as "1".
+  Otherwise, keep the traditional "G" marker for goalkeepers.
+  """
+  roles = team_roles
+  if roles[player_idx] == e_PlayerRole_GK:
+    if len(roles) == 1:
+      return '1'
+    return 'G'
+  return str(player_idx)
+
+
 def get_frame(trace):
   if 'frame' in trace._trace['observation']:
     return trace._trace['observation']['frame']
@@ -177,9 +193,7 @@ def get_frame(trace):
         player_coord[1],
         field_coords=True,
         color=(238, 68, 47))
-    letter = str(player_idx)
-    if trace['left_team_roles'][player_idx] == e_PlayerRole_GK:
-      letter = 'G'
+    letter = _display_player_label(trace['left_team_roles'], player_idx)
     writer.write(letter)
   for player_idx, player_coord in enumerate(trace['right_team']):
     writer = TextWriter(
@@ -188,9 +202,7 @@ def get_frame(trace):
         player_coord[1],
         field_coords=True,
         color=(99, 172, 190))
-    letter = str(player_idx)
-    if trace['right_team_roles'][player_idx] == e_PlayerRole_GK:
-      letter = 'G'
+    letter = _display_player_label(trace['right_team_roles'], player_idx)
     writer.write(letter)
   return frame
 
@@ -264,14 +276,12 @@ class ActiveDump(object):
       if self._config['display_game_stats']:
         writer.write('SCORE: %d - %d' % (o['score'][0], o['score'][1]))
         if o['ball_owned_team'] == 0:
-          player = 'G' if o['left_team_roles'][
-              o['ball_owned_player']] == e_PlayerRole_GK else o[
-                  'ball_owned_player']
+          player = _display_player_label(
+              o['left_team_roles'], o['ball_owned_player'])
           writer.write('BALL OWNED: %s' % player, color=(47, 68, 238))
         elif o['ball_owned_team'] == 1:
-          player = 'G' if o['right_team_roles'][
-              o['ball_owned_player']] == e_PlayerRole_GK else o[
-                  'ball_owned_player']
+          player = _display_player_label(
+              o['right_team_roles'], o['ball_owned_player'])
           writer.write('BALL OWNED: %s' % player, color=(190, 172, 99))
         else:
           writer.write('BALL OWNED: ---')
@@ -289,9 +299,8 @@ class ActiveDump(object):
             player_info = {}
             player_info['color'] = (
                 47, 68, 238) if team == 'left' else (190, 172, 99)
-            player_info['id'] = 'G' if o[
-                '%s_team_roles' %
-                team][player_idx] == e_PlayerRole_GK else str(player_idx)
+            player_info['id'] = _display_player_label(
+                o['%s_team_roles' % team], player_idx)
             active_direction = None
             for i in range(len(sticky_actions)):
               if sticky_actions[i]._directional:

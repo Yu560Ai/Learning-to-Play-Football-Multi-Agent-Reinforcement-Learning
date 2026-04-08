@@ -1,26 +1,24 @@
-from xjiang_football.envs import FootballEnvWrapper
-from xjiang_football.features import build_tactical_features, extract_feature_metrics, feature_dim
-from xjiang_football.model import ActorCritic
-from xjiang_football.rewards import RewardShapingConfig, compute_shaped_reward
-from xjiang_football.utils import (
-    NUM_TACTICAL_ACTIONS,
-    ROLE_NAMES,
-    TACTICAL_ACTION_NAMES,
-    ControlledRoleMap,
-    build_controlled_role_map,
+from xjiang_football.envs import FootballEnvWrapper, REDUCED_ACTION_INDICES, REDUCED_ACTION_NAMES
+from xjiang_football.features import (
+    ENGINEERED_FEATURE_DIM,
+    SIMPLE115_DIM,
+    build_engineered_features,
+    extract_feature_metrics,
 )
+from xjiang_football.model import ActorCritic, ModelConfig
+from xjiang_football.rewards import RewardShapingConfig, compute_shaped_reward
 
 __all__ = [
     "ActorCritic",
-    "ControlledRoleMap",
     "FootballEnvWrapper",
-    "NUM_TACTICAL_ACTIONS",
-    "ROLE_NAMES",
-    "TACTICAL_ACTION_NAMES",
+    "ModelConfig",
+    "REDUCED_ACTION_INDICES",
+    "REDUCED_ACTION_NAMES",
     "RewardShapingConfig",
-    "build_controlled_role_map",
-    "build_tactical_features",
+    "SIMPLE115_DIM",
+    "ENGINEERED_FEATURE_DIM",
+    "build_engineered_features",
     "compute_shaped_reward",
     "extract_feature_metrics",
-    "feature_dim",
 ]
+

@@ -476,7 +476,7 @@ to:
 
 - rebuilding the learning path so the agent can actually learn useful football content
 
-## 2026.4.2 Additional Academy / SaltyFish-Style Track
+## Additional Academy / SaltyFish-Style Track
 
 After further testing, the staged tactical academy path still showed a clear problem:
 
@@ -509,9 +509,6 @@ Because of that, a new baseline was created based on the core SaltyFish idea:
 
 But this was **not** implemented as a compatibility wrapper around the older `11_vs_11` SaltyFish code.
 
-Instead, a new version was written directly for this project's own `5_vs_5` setting.
-
-### New 5v5 SaltyFish-Style Baseline
 
 New files:
 
@@ -621,17 +618,717 @@ So this branch now explicitly tracks both:
 The current interpretation is:
 
 - the tactical academy branch is still useful as a research direction
-- but it is not yet the fastest path to confirming whether the project can learn useful `5_vs_5` football behavior
-- the new SaltyFish-style `5v5` branch is now the simpler diagnostic baseline
+#
+# 2026/4/8
 
-At this stage, the practical workflow is:
+## Final Curriculum Reset And Clean Learning Chain
 
-1. use the SaltyFish-style `5v5` branch to validate that learning trends are real
-2. inspect whether possession, passing, and shot quality improve
-3. only then decide whether to transfer ideas back into the tactical multi-agent branch
+This section records the most important conclusion reached on `2026/4/8`.
 
-So this new branch should be treated as:
+The core lesson was:
 
-- a simpler control experiment
-- a debugging baseline
-- a lower-complexity reference for future `5_vs_5` training work
+- the project was not failing only because of PPO tuning
+- it was also failing because the learning chain had become too complicated
+- too many experiments, patches, reward variants, and helper rules were mixed into the same path
+- as a result, it became hard to tell whether the agent was learning football or only following accidental training biases
+
+After comparing our runs with:
+
+- official Google Research Football academy scenarios
+- SaltyFish-style simple training logic
+- the project's own failed custom `1v1` iterations
+
+the correct direction became much clearer:
+
+- start from the simplest official academy tasks
+- confirm that the agent can really learn there
+- then increase difficulty one step at a time
+- do not jump directly from empty-goal finishing to goalkeeper + defender pressure
+- do not let helper rules become the main source of success
+
+The result is a much cleaner staged curriculum.
+
+## The Correct Step-By-Step Learning Method
+
+The current recommended order is:
+
+1. `academy_empty_goal_close_curriculum`
+2. `academy_empty_goal_curriculum`
+3. `academy_1v1_close_bridge_fast`
+4. `academy_1v1_defended_bridge` (optional harder solo bridge)
+5. `academy_pass_and_shoot_curriculum`
+
+`5v5` is no longer treated as the default target. It remains an optional later
+experiment only if the solo and two-player stages become stable first.
+
+Current practical next step:
+
+- Stages 1 and 2 are already considered passed.
+- The current reliable default entry remains `academy_empty_goal_curriculum`.
+- Defended solo stages should be treated as explicit next experiments rather
+  than the default launch target until a faster bridge stage is fully
+  validated.
+
+### Stage 1: `academy_empty_goal_close_curriculum`
+
+Goal:
+
+- learn the most basic single-player finishing behavior
+- move toward the goal
+- trigger shot
+- convert very easy chances
+
+Why this stage matters:
+
+- it verifies that PPO, observation formatting, action mapping, checkpoint saving, and video export all work
+- it removes almost all football complexity except the final act of scoring
+- if the agent cannot learn here, the main pipeline is broken
+
+What we observed:
+
+- this stage learns quickly
+- success rate can become high
+- this confirms that the simplified action set and clean PPO path can learn useful behavior
+
+### Stage 2: `academy_empty_goal_curriculum`
+
+Goal:
+
+- keep the task simple
+- but require more self-driven approach and shot timing
+- move from very close finishing to a more realistic solo approach
+
+Why this stage matters:
+
+- it forces the policy to do more than stand and shoot
+- it tests whether the agent can carry ball progression into a successful finish
+
+Important lesson:
+
+- training rollout metrics may look strong before deterministic video looks strong
+- stochastic evaluation and video export are both needed
+- the checkpoint can contain real scoring behavior even if deterministic evaluation is still less stable
+
+### Stage 3: `academy_1v1_close_bridge_fast`
+
+Goal:
+
+- introduce exactly one defender
+- keep the drill short enough to learn quickly on CPU
+- learn to beat one defender and then finish
+
+Why this stage matters:
+
+- this is the first true bridge from empty-goal finishing into real defended play
+- it teaches "beat one defender, then finish"
+- it is intentionally narrower than official `run_to_score` so that feedback is faster
+
+Most important insight:
+
+- going directly from empty-goal stages into multi-defender official scenarios was too hard
+- empty-goal finishing ability did not automatically transfer through full defended pressure at once
+
+So this stage was added as the correct first defended layer.
+
+### Stage 4: `academy_1v1_defended_bridge`
+
+Goal:
+
+- keep solo play but make the defended drill longer and less local
+- test whether the agent can sustain defended progression, not just finish a close duel
+
+Why this stage matters:
+
+- this checks whether the agent can generalize from a close duel into a more sustained 1v1 carrying problem
+- it is still a solo task, so cooperation has not been introduced yet
+
+Important lesson:
+
+- even here, difficulty can grow too fast if episode length is too long or if possession loss ends the episode immediately
+- this stage is optional if the faster bridge already gives stable solo defended finishing
+
+### Stage 5: `academy_pass_and_shoot_curriculum`
+
+Goal:
+
+- only after single-player progression, defended carrying, and finishing are already working
+- begin learning two-player coordination
+- add pass-to-shot behavior
+
+Why this stage must come last:
+
+- if introduced too early, the agent mixes up three different problems:
+  - progression
+  - finishing
+  - cooperation
+- this was one of the main causes of earlier confusion
+
+So the current principle is:
+
+- do not ask for cooperation before stable solo attack exists
+- do not ask for `5v5` before stable two-player attack exists
+
+## What Went Wrong Before
+
+The previous failed path had several structural problems:
+
+- custom `1v1` scenario work and official academy work were mixed together
+- too many reward variants were added at once
+- some helper rules were strong enough to distort behavior
+- imitation / prior logic was introduced before the clean curriculum itself was validated
+- training conclusions were sometimes drawn from rollout metrics alone without confirming with videos
+
+This created a false picture:
+
+- some runs looked promising in logs
+- but the videos showed weak or unstable real behavior
+
+The most important correction was:
+
+- return to official academy tasks first
+- prove that the clean training path learns there
+- only then step upward
+
+## The Clean Python Logic By File
+
+This section is the main code-level reference for the final report.
+
+### [train.py](/root/Codes/football-rl-win/X_Jiang/train.py)
+
+Responsibility:
+
+- command-line training entry point
+- loads a preset from `presets.py`
+- applies CLI overrides like device or checkpoint path
+- calls the PPO trainer
+
+Meaning in the final chain:
+
+- this is the top-level launch point for every curriculum stage
+- it should remain thin
+- it should not contain football logic
+
+### [evaluate.py](/root/Codes/football-rl-win/X_Jiang/evaluate.py)
+
+Responsibility:
+
+- load a saved checkpoint
+- reconstruct the correct environment and model config
+- run deterministic or stochastic evaluation
+- optionally export videos
+
+Meaning in the final chain:
+
+- used to confirm whether rollout metrics reflect actual behavior
+- videos are mandatory for stage validation
+- stochastic evaluation is useful to see whether training rollouts contain real scoring behavior
+- deterministic evaluation is useful to see whether the policy has become stable
+
+### [rerender_dump.py](/root/Codes/football-rl-win/X_Jiang/rerender_dump.py)
+
+Responsibility:
+
+- re-render existing `.dump` files into videos without retraining
+- useful for fixing visual annotation issues
+
+Meaning in the final chain:
+
+- this is a debugging / reporting utility
+- it does not affect learning
+
+### [presets.py](/root/Codes/football-rl-win/X_Jiang/presets.py)
+
+Responsibility:
+
+- defines the training presets
+- is the single source of truth for curriculum stages
+- controls:
+  - environment name
+  - action set
+  - rollout length
+  - timesteps
+  - reward shaping weights
+  - checkpoint / log directories
+
+Meaning in the final chain:
+
+- this file defines the curriculum itself
+- if the curriculum order changes, this file should show it clearly
+
+Current key presets:
+
+- `academy_empty_goal_close_curriculum`
+- `academy_empty_goal_curriculum`
+- `academy_1v1_close_bridge_fast`
+- `academy_1v1_defended_bridge`
+- `academy_pass_and_shoot_curriculum`
+
+### [xjiang_football/envs.py](/root/Codes/football-rl-win/X_Jiang/xjiang_football/envs.py)
+
+Responsibility:
+
+- wraps GRF environment creation
+- handles action sets
+- maps local action ids to GRF actions
+- supports video writing and metric extraction
+- supports parallel rollout workers
+
+Meaning in the final chain:
+
+- this file is where task interface simplification happens
+- the most important clean decision here was to use a very small solo action set:
+  - `idle`
+  - 8 movement directions
+  - `shot`
+
+Why this matters:
+
+- it keeps the learning problem close to the official GRF academy setup
+- it avoids noisy action semantics during early solo curriculum
+
+### [xjiang_football/model.py](/root/Codes/football-rl-win/X_Jiang/xjiang_football/model.py)
+
+Responsibility:
+
+- defines the policy and value network
+- in the current clean curriculum path, this is a small PPO actor-critic
+
+Meaning in the final chain:
+
+- the current lesson is that model complexity was not the main bottleneck
+- the clean curriculum works with a small network
+
+### [xjiang_football/ppo.py](/root/Codes/football-rl-win/X_Jiang/xjiang_football/ppo.py)
+
+Responsibility:
+
+- rollout collection
+- GAE advantage computation
+- PPO update loop
+- checkpoint save / load
+- logging
+- best-checkpoint tracking
+
+Meaning in the final chain:
+
+- this file should optimize a clean task definition, not compensate for a bad one
+- in the final clean curriculum path:
+  - PPO is simple
+  - no heavy behavior-cloning constraint is active
+  - no prior KL is active
+  - no rule-based override is used as the main source of success
+
+This is important because earlier versions became too dependent on:
+
+- prior constraints
+- helper rules
+- overcomplicated shaping
+
+The clean path intentionally avoids that.
+
+### [xjiang_football/rewards.py](/root/Codes/football-rl-win/X_Jiang/xjiang_football/rewards.py)
+
+Responsibility:
+
+- computes reward shaping terms and behavior diagnostics
+
+Meaning in the final chain:
+
+- this file still supports many shaping diagnostics from earlier experiments
+- but the clean curriculum intentionally uses only a minimal subset
+
+For the official clean stages, the practical reward logic is mostly:
+
+- GRF scoring reward
+- checkpoint-style progression reward
+- very weak penalties for obviously bad low-quality shots or regressions
+
+Why this matters:
+
+- this matches the main lesson from SaltyFish and official GRF curriculum usage
+- the agent should not be buried under too many shaping terms before basic behaviors are learned
+
+### [xjiang_football/priors.py](/root/Codes/football-rl-win/X_Jiang/xjiang_football/priors.py)
+
+Responsibility:
+
+- defines rule-based single-player priors used for imitation experiments
+
+Meaning in the final chain:
+
+- this file is no longer part of the main clean curriculum path
+- it remains useful for future experiments
+- but it is not the current recommended default
+
+Reason:
+
+- the project learned that helper priors can easily mask whether the core curriculum actually works
+
+### [imitation_pretrain.py](/root/Codes/football-rl-win/X_Jiang/imitation_pretrain.py)
+
+Responsibility:
+
+- behavior cloning warm-start generation for single-player academy presets
+
+Meaning in the final chain:
+
+- this also remains available
+- but it is not part of the current clean official curriculum baseline
+
+Reason:
+
+- first the plain PPO curriculum must be validated
+- only then should imitation be reintroduced carefully if needed
+
+### [football-master/gfootball/scenarios/*.py](/root/Codes/football-rl-win/football-master/gfootball/scenarios)
+
+Responsibility:
+
+- official GRF scenario definitions
+
+Meaning in the final chain:
+
+- these are the ground truth tasks for the curriculum
+- using them avoids confusion caused by custom scenario side effects
+
+The key official scenarios now used are:
+
+- [academy_empty_goal_close.py](/root/Codes/football-rl-win/football-master/gfootball/scenarios/academy_empty_goal_close.py)
+- [academy_empty_goal.py](/root/Codes/football-rl-win/football-master/gfootball/scenarios/academy_empty_goal.py)
+- [academy_run_to_score.py](/root/Codes/football-rl-win/football-master/gfootball/scenarios/academy_run_to_score.py)
+- [academy_run_to_score_with_keeper.py](/root/Codes/football-rl-win/football-master/gfootball/scenarios/academy_run_to_score_with_keeper.py)
+- [academy_pass_and_shoot_with_keeper.py](/root/Codes/football-rl-win/football-master/gfootball/scenarios/academy_pass_and_shoot_with_keeper.py)
+
+## Current Recommended Commands
+
+### Stage 1
+
+```bash
+.venv/bin/python X_Jiang/train.py --preset academy_empty_goal_close_curriculum --device cpu
+```
+
+### Stage 2
+
+```bash
+.venv/bin/python X_Jiang/train.py --preset academy_empty_goal_curriculum --device cpu
+```
+
+### Stage 3
+
+```bash
+.venv/bin/python X_Jiang/train.py \
+  --preset academy_1v1_close_bridge_fast \
+  --init-checkpoint X_Jiang/checkpoints/academy_empty_goal_curriculum/best.pt \
+  --device cpu
+```
+
+### Stage 4
+
+```bash
+.venv/bin/python X_Jiang/train.py \
+  --preset academy_1v1_defended_bridge \
+  --init-checkpoint X_Jiang/checkpoints/academy_1v1_close_bridge_fast/best.pt \
+  --device cpu
+```
+
+### Stage 5
+
+```bash
+.venv/bin/python X_Jiang/train.py \
+  --preset academy_pass_and_shoot_curriculum \
+  --init-checkpoint X_Jiang/checkpoints/academy_1v1_close_bridge_fast/best.pt \
+  --device cpu
+```
+
+## What Must Be Checked At Each Stage
+
+Do not rely on one metric only.
+
+The minimum required checks are:
+
+- training logs
+- deterministic evaluation
+- stochastic evaluation
+- video export
+
+The most important learning indicators are:
+
+- `goals_for`
+- `success_rate`
+- `shots`
+- `ball_prog`
+- `checkpoints`
+
+Interpretation rule:
+
+- if rollout logs look strong but videos look wrong, the stage is not passed
+- if stochastic evaluation works but deterministic evaluation is weak, the behavior exists but is not yet stable
+- if deterministic videos clearly show correct task behavior, the stage is passed
+
+## Final Conclusion As Of 2026/4/8
+
+The correct report-level conclusion is:
+
+- the project should not be described as "reward tuning gradually solved football"
+- the main breakthrough was rebuilding the learning chain into a clean official curriculum
+- the simplest official academy stages were necessary to prove the pipeline could really learn
+- the next real challenge is controlled transfer:
+  - empty goal
+  - defender pressure
+  - goalkeeper pressure
+  - finally pass-and-shoot cooperation
+
+In short:
+
+- first learn to score
+- then learn to score under pressure
+- then learn to score together
+
+That is the final correct chain recorded on `2026/4/8`.
+
+## Failure Chain That We Now Reject
+
+The following path is now considered the wrong main path and should not be used as the report's primary story:
+
+- start from custom `1v1`
+- add many reward terms at once
+- add force-shoot helper rules
+- add imitation warm-start before the clean curriculum is validated
+- read rollout metrics as if they already prove real football behavior
+
+Why this path failed:
+
+- it mixed too many sources of behavior at once
+- it became unclear whether the agent or the helper logic was responsible for success
+- videos often contradicted logs
+- custom scenarios introduced confounds before official tasks were even solved
+
+This does not mean those experiments were useless.
+
+They were useful because they revealed:
+
+- where the learning chain breaks
+- how strong helper rules can distort interpretation
+- why official benchmark stages are necessary
+
+But they should now be treated as:
+
+- diagnostic history
+- not the clean final method
+
+## Stage-By-Stage Pass Criteria
+
+The curriculum should not move forward just because one metric spikes once.
+
+Each stage must satisfy a practical pass condition.
+
+### Stage 1 Pass Condition: `academy_empty_goal_close_curriculum`
+
+The stage is considered passed when:
+
+- scoring appears quickly and repeatedly
+- stochastic video clearly shows repeated direct scoring behavior
+- deterministic evaluation is at least partly aligned with the rollout result
+
+What this proves:
+
+- the basic PPO + env + action mapping pipeline is healthy
+- the agent can trigger shooting behavior without helper rules
+
+### Stage 2 Pass Condition: `academy_empty_goal_curriculum`
+
+The stage is considered passed when:
+
+- the agent can still score from farther out
+- it no longer depends on standing almost on top of goal
+- stochastic video contains clear `1-0` episodes
+
+What this proves:
+
+- empty-goal scoring is no longer purely trivial proximity behavior
+- the agent can approach and finish
+
+### Stage 3 Pass Condition: `academy_run_to_score_clean`
+
+The stage is considered passed when:
+
+- `goals_for` becomes consistently non-zero
+- `success_rate` is not pinned at zero
+- the agent does not immediately lose possession to the defender
+- videos show forward progression under pressure, not only random shots
+
+What this proves:
+
+- the agent can keep useful attack behavior when a defender is present
+- the first defender-pressure transfer step works
+
+### Stage 4 Pass Condition: `academy_run_to_score_official_clean`
+
+The stage is considered passed when:
+
+- the defender-pressure behavior survives with goalkeeper pressure added
+- scoring remains non-zero after transfer from Stage 3
+- the video shows actual finishing attempts that beat the keeper, not just noise
+
+What this proves:
+
+- the agent has moved from empty-goal finishing to real defended finishing
+
+### Stage 5 Pass Condition: `academy_pass_and_shoot_with_keeper`
+
+The stage is considered passed when:
+
+- pass behavior actually appears
+- goals come from meaningful pass-to-shot sequences
+- the agent does not collapse back into isolated solo random shots
+
+What this proves:
+
+- solo attack ability is strong enough to support simple cooperation
+
+## What Has Already Been Verified
+
+As of `2026/4/8`, the following statements are already supported by actual runs:
+
+1. `academy_empty_goal_close_curriculum` can be learned cleanly with plain PPO.
+2. `academy_empty_goal_curriculum` can also produce real scoring episodes.
+3. Strong rollout metrics alone are not enough; stochastic and deterministic videos must also be checked.
+4. Jumping directly from empty-goal stages to `academy_run_to_score_with_keeper` is too large a transfer step.
+5. A missing middle layer between empty-goal scoring and goalkeeper-pressure scoring is required.
+
+These are not guesses anymore.
+
+They are conclusions backed by:
+
+- training logs
+- saved checkpoints
+- deterministic evaluation
+- stochastic evaluation
+- exported videos
+
+## What Is Still Open
+
+The following questions remain open and should be treated as current research work rather than solved facts:
+
+1. How stable will `academy_run_to_score_clean` become after enough updates?
+2. How much of that behavior will transfer into `academy_run_to_score_official_clean`?
+3. At what point is the policy stable enough to begin `academy_pass_and_shoot_with_keeper`?
+4. How much of the academy-learned attack behavior can be transferred back into `5v5`?
+
+These questions should be evaluated in this order.
+
+Do not jump to later questions before earlier ones are clearly answered.
+
+## Clean Interpretation Rules For Future Reporting
+
+When writing the final report, the following interpretation rules should be followed strictly.
+
+### Rule 1
+
+Do not claim a task is solved only because rollout `success_rate` is high.
+
+Why:
+
+- rollout statistics can be inflated by stochastic action sampling
+- videos may still show unstable or poor deterministic behavior
+
+### Rule 2
+
+Do not claim helper logic taught football unless the same behavior survives after helper logic is removed.
+
+Why:
+
+- force-shoot and related helpers can create fake progress
+- the report must distinguish:
+  - agent-learned behavior
+  - helper-induced behavior
+
+### Rule 3
+
+If deterministic video and stochastic video disagree, write that explicitly.
+
+Interpretation:
+
+- stochastic success means the policy has discovered the behavior distributionally
+- deterministic failure means the policy has not yet stabilized around it
+
+### Rule 4
+
+If a new curriculum stage fails after a previous one succeeded, do not immediately conclude that the previous stage was useless.
+
+Interpretation:
+
+- usually this means the transfer jump was too large
+- not that the previous skill was fake
+
+### Rule 5
+
+Prefer official GRF curriculum evidence over custom scenario evidence when establishing the main report narrative.
+
+Why:
+
+- official scenarios are standardized
+- custom scenarios are better treated as later experiments
+
+## Current Recommended Narrative For The Final Report
+
+The report should now describe the project as:
+
+- a curriculum reconstruction effort
+- not a reward-hacking success story
+- not a pure hyperparameter tuning story
+
+The clean narrative should be:
+
+1. The original complex path mixed too many learning sources.
+2. Official academy stages were used to re-establish a trustworthy baseline.
+3. The agent first learned empty-goal finishing.
+4. Transfer to defended finishing required inserting a defender-only intermediate stage.
+5. Only after defended solo finishing is stable should cooperative pass-and-shoot be learned.
+
+This is the clearest and most defensible account of what the code now represents.
+
+## Relationship To SaltyFish And GRF Official Design
+
+The final `2026/4/8` chain should be described as aligned with two important ideas:
+
+### From official GRF academy
+
+- learn through progressively harder scenarios
+- validate on standardized tasks
+- do not hide environment difficulty behind custom task assumptions too early
+
+### From SaltyFish
+
+- keep the learning problem clean
+- avoid piling on too many simultaneous behavior objectives
+- use simple, interpretable reward structure first
+
+The final clean path therefore borrows:
+
+- official scenario progression from GRF
+- problem simplification discipline from SaltyFish
+
+## Current Recommended Practical Workflow
+
+Until this line is fully completed, the practical workflow should be:
+
+1. Train one curriculum stage.
+2. Save `best.pt`.
+3. Run deterministic evaluation.
+4. Run stochastic evaluation.
+5. Export video.
+6. Decide pass / fail.
+7. Only then move to the next stage.
+
+This is now the correct operational habit for the project.
+
+## Final Status Summary On 2026/4/8
+
+At the end of this revision, the state of the project is:
+
+- the clean official academy path is working
+- the first two empty-goal curriculum stages have real evidence of success
+- direct transfer to keeper pressure was shown to be too difficult
+- a defender-only intermediate stage was introduced as the next correct step
+- the README now reflects the correct learning chain and should be used as the main report reference
