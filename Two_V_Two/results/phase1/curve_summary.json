@@ -1,0 +1,30 @@
+{
+  "r1_scoring": {
+    "mean_assist_count": 0.0,
+    "mean_episode_return": -0.034,
+    "mean_goal_count": 0.0015,
+    "mean_pass_count": 0.0,
+    "mean_same_owner_possession_length": 5.806371124708624
+  },
+  "r2_progress": {
+    "mean_assist_count": 0.0,
+    "mean_episode_return": -0.051710639536220696,
+    "mean_goal_count": 0.0045,
+    "mean_pass_count": 0.0,
+    "mean_same_owner_possession_length": 7.017422619047619
+  },
+  "r3_assist": {
+    "mean_assist_count": 0.0,
+    "mean_episode_return": -0.04325109965069623,
+    "mean_goal_count": 0.0,
+    "mean_pass_count": 0.004,
+    "mean_same_owner_possession_length": 3.280166666666667
+  },
+  "r4_anti_selfish": {
+    "mean_assist_count": 0.0,
+    "mean_episode_return": -0.02629463689983095,
+    "mean_goal_count": 0.0,
+    "mean_pass_count": 0.015000000000000003,
+    "mean_same_owner_possession_length": 3.850389285714286
+  }
+}

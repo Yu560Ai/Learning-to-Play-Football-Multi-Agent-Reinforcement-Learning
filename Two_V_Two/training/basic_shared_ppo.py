@@ -349,6 +349,7 @@ class SharedPolicyPPOTrainer:
         completed_goal_counts: list[float] = []
         completed_pass_counts: list[float] = []
         completed_assist_counts: list[float] = []
+        completed_pass_to_shot_counts: list[float] = []
         completed_possession_means: list[float] = []
 
         train_start = time.perf_counter()
@@ -375,6 +376,7 @@ class SharedPolicyPPOTrainer:
                     completed_goal_counts.append(float(episode_metrics.get("goal_count", 0.0)))
                     completed_pass_counts.append(float(episode_metrics.get("pass_count", 0.0)))
                     completed_assist_counts.append(float(episode_metrics.get("assist_count", 0.0)))
+                    completed_pass_to_shot_counts.append(float(episode_metrics.get("pass_to_shot_count", 0.0)))
                     completed_possession_means.append(
                         float(episode_metrics.get("mean_same_owner_possession_length", 0.0))
                     )
@@ -396,6 +398,9 @@ class SharedPolicyPPOTrainer:
             mean_goals = float(np.mean(completed_goal_counts[-100:])) if completed_goal_counts else float("nan")
             mean_passes = float(np.mean(completed_pass_counts[-100:])) if completed_pass_counts else float("nan")
             mean_assists = float(np.mean(completed_assist_counts[-100:])) if completed_assist_counts else float("nan")
+            mean_pass_to_shot = (
+                float(np.mean(completed_pass_to_shot_counts[-100:])) if completed_pass_to_shot_counts else float("nan")
+            )
             mean_possession = (
                 float(np.mean(completed_possession_means[-100:])) if completed_possession_means else float("nan")
             )
@@ -412,6 +417,7 @@ class SharedPolicyPPOTrainer:
                 "mean_goal_count": mean_goals,
                 "mean_pass_count": mean_passes,
                 "mean_assist_count": mean_assists,
+                "mean_pass_to_shot_count": mean_pass_to_shot,
                 "mean_same_owner_possession_length": mean_possession,
                 "rollout_fps": env_steps_per_update / rollout_time,
                 "update_fps": env_steps_per_update / update_time,
@@ -432,6 +438,7 @@ class SharedPolicyPPOTrainer:
                 f"goals={mean_goals:.3f} "
                 f"passes={mean_passes:.3f} "
                 f"assists={mean_assists:.3f} "
+                f"pass_to_shot={mean_pass_to_shot:.3f} "
                 f"possession={mean_possession:.2f} "
                 f"policy_loss={update_metrics['policy_loss']:.4f} "
                 f"value_loss={update_metrics['value_loss']:.4f} "

@@ -129,6 +129,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.02,
         help="Penalty gamma applied each step after the selfish possession threshold is exceeded.",
     )
+    parser.add_argument(
+        "--pass_to_shot_window",
+        type=int,
+        default=10,
+        help="Diagnostic window in steps for counting a teammate shot shortly after a successful controlled pass.",
+    )
 
     parser.set_defaults(
         env_name="football",
