@@ -95,6 +95,18 @@ class SharedPolicyPPOTrainer:
         self.num_agents = int(args.num_agents)
         self.total_env_steps = 0
 
+    @staticmethod
+    def _extract_env_info(infos: Any, env_idx: int) -> dict[str, Any]:
+        env_info = infos[env_idx]
+        if isinstance(env_info, np.ndarray):
+            flat = env_info.reshape(-1)
+            candidate = flat[0] if flat.size else {}
+        elif isinstance(env_info, (list, tuple)):
+            candidate = env_info[0] if env_info else {}
+        else:
+            candidate = env_info
+        return candidate if isinstance(candidate, dict) else {}
+
     def _make_train_envs(self):
         def get_env_fn(rank: int):
             def init_env():
@@ -334,6 +346,10 @@ class SharedPolicyPPOTrainer:
         completed_returns: list[float] = []
         completed_lengths: list[int] = []
         completed_successes: list[float] = []
+        completed_goal_counts: list[float] = []
+        completed_pass_counts: list[float] = []
+        completed_assist_counts: list[float] = []
+        completed_possession_means: list[float] = []
 
         train_start = time.perf_counter()
         for update in range(1, num_updates + 1):
@@ -351,9 +367,17 @@ class SharedPolicyPPOTrainer:
                 for env_idx, done_flag in enumerate(done_envs):
                     if not done_flag:
                         continue
+                    env_info = self._extract_env_info(infos, env_idx)
+                    episode_metrics = env_info.get("episode_metrics", {})
                     completed_returns.append(float(current_returns[env_idx]))
                     completed_lengths.append(int(current_lengths[env_idx]))
                     completed_successes.append(float(current_returns[env_idx] > 0.0))
+                    completed_goal_counts.append(float(episode_metrics.get("goal_count", 0.0)))
+                    completed_pass_counts.append(float(episode_metrics.get("pass_count", 0.0)))
+                    completed_assist_counts.append(float(episode_metrics.get("assist_count", 0.0)))
+                    completed_possession_means.append(
+                        float(episode_metrics.get("mean_same_owner_possession_length", 0.0))
+                    )
                     current_returns[env_idx] = 0.0
                     current_lengths[env_idx] = 0
 
@@ -369,15 +393,26 @@ class SharedPolicyPPOTrainer:
             mean_return = float(np.mean(completed_returns[-100:])) if completed_returns else float("nan")
             mean_length = float(np.mean(completed_lengths[-100:])) if completed_lengths else float("nan")
             success_rate = float(np.mean(completed_successes[-100:])) if completed_successes else float("nan")
+            mean_goals = float(np.mean(completed_goal_counts[-100:])) if completed_goal_counts else float("nan")
+            mean_passes = float(np.mean(completed_pass_counts[-100:])) if completed_pass_counts else float("nan")
+            mean_assists = float(np.mean(completed_assist_counts[-100:])) if completed_assist_counts else float("nan")
+            mean_possession = (
+                float(np.mean(completed_possession_means[-100:])) if completed_possession_means else float("nan")
+            )
             total_elapsed = max(time.perf_counter() - train_start, 1e-8)
 
             metrics = {
                 "update": update,
                 "env_steps": self.total_env_steps,
                 "episodes_finished": len(completed_returns),
+                "reward_variant": self.args.reward_variant,
                 "mean_episode_return": mean_return,
                 "mean_episode_length": mean_length,
                 "success_rate": success_rate,
+                "mean_goal_count": mean_goals,
+                "mean_pass_count": mean_passes,
+                "mean_assist_count": mean_assists,
+                "mean_same_owner_possession_length": mean_possession,
                 "rollout_fps": env_steps_per_update / rollout_time,
                 "update_fps": env_steps_per_update / update_time,
                 "overall_fps": self.total_env_steps / total_elapsed,
@@ -390,9 +425,14 @@ class SharedPolicyPPOTrainer:
                 "[train] "
                 f"update={update}/{num_updates} "
                 f"env_steps={self.total_env_steps} "
+                f"variant={self.args.reward_variant} "
                 f"return={mean_return:.3f} "
                 f"len={mean_length:.1f} "
                 f"success={success_rate:.3f} "
+                f"goals={mean_goals:.3f} "
+                f"passes={mean_passes:.3f} "
+                f"assists={mean_assists:.3f} "
+                f"possession={mean_possession:.2f} "
                 f"policy_loss={update_metrics['policy_loss']:.4f} "
                 f"value_loss={update_metrics['value_loss']:.4f} "
                 f"entropy={update_metrics['entropy']:.4f} "

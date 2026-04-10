@@ -53,8 +53,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--rewards",
         type=str,
-        default="scoring,checkpoints",
-        help="GRF reward string.",
+        default="scoring",
+        help="Underlying GRF reward string. Phase 1 reward shaping uses local reward_variant logic.",
     )
     parser.add_argument(
         "--action_set",
@@ -91,6 +91,43 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="Optional GRF engine seed base.",
+    )
+    parser.add_argument(
+        "--reward_variant",
+        type=str,
+        default="r1_scoring",
+        choices=["r1_scoring", "r2_progress", "r3_assist", "r4_anti_selfish"],
+        help="Phase 1 reward variant to run on top of the shared-policy PPO baseline.",
+    )
+    parser.add_argument(
+        "--progress_reward_coef",
+        type=float,
+        default=0.05,
+        help="Coefficient alpha for positive forward ball progress reward.",
+    )
+    parser.add_argument(
+        "--assist_reward",
+        type=float,
+        default=0.5,
+        help="Assist reward beta when a controlled pass leads to a teammate goal within the assist window.",
+    )
+    parser.add_argument(
+        "--assist_window",
+        type=int,
+        default=25,
+        help="Assist window K in environment steps.",
+    )
+    parser.add_argument(
+        "--selfish_possession_threshold",
+        type=int,
+        default=12,
+        help="Possession streak threshold N before the anti-selfish penalty applies.",
+    )
+    parser.add_argument(
+        "--selfish_penalty",
+        type=float,
+        default=0.02,
+        help="Penalty gamma applied each step after the selfish possession threshold is exceeded.",
     )
 
     parser.set_defaults(
