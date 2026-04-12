@@ -1,0 +1,31 @@
+{
+  "best_overall_checkpoint": {
+    "checkpoint": "update_000130.pt",
+    "checkpoint_env_steps": 208000,
+    "checkpoint_name": "update_000130.pt",
+    "checkpoint_update": 130,
+    "condition": "r2_progress/mappo_id_cc",
+    "episodes": 20,
+    "goal_rate": 0.05,
+    "mean_assist_count": 0.0,
+    "mean_episode_length": 76.6,
+    "mean_episode_return": 0.06151370706834314,
+    "mean_goal_count": 0.05,
+    "mean_pass_count": 0.0,
+    "mean_pass_to_shot_count": 0.0,
+    "mean_same_owner_possession_length": 16.2725,
+    "quality_score": -0.3772500000000001,
+    "reward_variant": "r2_progress",
+    "structure_variant": "mappo_id_cc"
+  },
+  "checkpoint_stride": 1,
+  "conditions": [
+    "r2_progress/shared_ppo",
+    "r2_progress/mappo_id_cc",
+    "r3_assist/shared_ppo",
+    "r3_assist/mappo_id_cc"
+  ],
+  "episodes_per_checkpoint": 20,
+  "num_checkpoints_evaluated": 128,
+  "num_conditions": 4
+}

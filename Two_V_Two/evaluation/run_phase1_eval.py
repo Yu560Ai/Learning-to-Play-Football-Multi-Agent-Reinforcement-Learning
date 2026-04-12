@@ -156,6 +156,7 @@ def evaluate_variant(run_dir: Path, checkpoint_name: str, episodes: int) -> dict
 
     return {
         "reward_variant": str(args.reward_variant),
+        "structure_variant": str(getattr(args, "structure_variant", "shared_ppo")),
         "episodes": int(episodes),
         "checkpoint": checkpoint_name,
         "checkpoint_update": int(payload["update"]),

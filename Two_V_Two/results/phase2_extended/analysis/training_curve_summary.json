@@ -1,0 +1,16 @@
+{
+  "conditions": [
+    "r2_progress/mappo_id_cc",
+    "r2_progress/shared_ppo",
+    "r3_assist/mappo_id_cc",
+    "r3_assist/shared_ppo"
+  ],
+  "figure": "Two_V_Two/results/phase2_extended/analysis/training_curves.png",
+  "metrics": [
+    "mean_episode_return",
+    "mean_pass_count",
+    "mean_pass_to_shot_count",
+    "mean_assist_count",
+    "mean_same_owner_possession_length"
+  ]
+}

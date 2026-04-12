@@ -24,12 +24,13 @@ It keeps the useful structure from the earlier GPT outline, but adjusts the firs
 
 Freeze the study setting:
 
-- `2` attacking RL agents
-- built-in goalkeeper
-- built-in defenders
+- `2` attacking RL agents on the left side
+- built-in left goalkeeper
+- `2` built-in right-side opponents
+- built-in right goalkeeper
 - shared policy
 - one main training environment
-- academy tasks only for probing
+- no academy dependency in the main task
 
 ### Phase 1
 
@@ -56,7 +57,7 @@ Stabilize the training backbone:
 
 Build the exact custom `2`-agent environment interface:
 
-- keep the same training scenario at first
+- keep the custom `2+GK vs 2+GK` training scenario fixed
 - keep the original observation and action interface until the wrapper is stable
 - isolate environment changes from algorithm changes
 
@@ -72,7 +73,7 @@ Shrink to the paper setting:
 
 Add the evaluation layer:
 
-- academy probes
+- custom-scenario probes
 - goal rate logging
 - return curves
 - replay dumps
@@ -100,7 +101,7 @@ Produce final behavior-emergence outputs:
 
 - return vs steps
 - goal success vs steps
-- academy probe curves
+- custom-scenario probe curves
 - action distributions over time
 - cooperation metrics
 

@@ -1,0 +1,28 @@
+{
+  "best_checkpoint": {
+    "checkpoint": "update_000150.pt",
+    "checkpoint_env_steps": 240000,
+    "checkpoint_name": "update_000150.pt",
+    "checkpoint_update": 150,
+    "episodes": 20,
+    "goal_rate": 0.0,
+    "mean_assist_count": 0.0,
+    "mean_episode_length": 166.75,
+    "mean_episode_return": 0.013481265364305273,
+    "mean_goal_count": 0.0,
+    "mean_pass_count": 0.95,
+    "mean_pass_to_shot_count": 0.0,
+    "mean_same_owner_possession_length": 11.338676046176046,
+    "reward_variant": "r3_assist",
+    "run_label": "5M"
+  },
+  "episodes_per_checkpoint": 20,
+  "num_checkpoints": 88,
+  "num_nonzero_goal_checkpoints": 0,
+  "num_nonzero_pass_checkpoints": 7,
+  "num_nonzero_pass_to_shot_checkpoints": 0,
+  "run_labels": [
+    "1M",
+    "5M"
+  ]
+}

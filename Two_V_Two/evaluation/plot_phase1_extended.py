@@ -16,10 +16,12 @@ VARIANTS = [
 ]
 
 PLOT_SPECS = [
+    ("mean_episode_return", "Episode Return", "plot_0_return_curve.png"),
     ("mean_goal_count", "Goal Count Proxy", "plot_a_goal_curve.png"),
     ("mean_pass_count", "Pass Count", "plot_b_pass_curve.png"),
     ("mean_assist_count", "Assist Count", "plot_c_assist_curve.png"),
     ("mean_same_owner_possession_length", "Mean Same-Agent Possession Streak", "plot_d_possession_curve.png"),
+    ("mean_pass_to_shot_count", "Pass-To-Shot Count", "plot_f_pass_to_shot_curve.png"),
 ]
 
 
@@ -127,13 +129,14 @@ def main() -> None:
         plt.close(fig)
 
     # Plot E: budget comparison summary using final available values.
-    comparison_metric = "mean_goal_count"
-    fig, axes = plt.subplots(2, 2, figsize=(12, 9))
+    fig, axes = plt.subplots(2, 3, figsize=(15, 9))
     comparison_metrics = [
+        ("mean_episode_return", "Episode Return"),
         ("mean_goal_count", "Goal Count Proxy"),
         ("mean_pass_count", "Pass Count"),
         ("mean_assist_count", "Assist Count"),
         ("mean_same_owner_possession_length", "Possession Streak"),
+        ("mean_pass_to_shot_count", "Pass-To-Shot Count"),
     ]
     for axis, (metric_key, title) in zip(axes.flatten(), comparison_metrics):
         x = np.arange(len(budget_roots))

@@ -12,8 +12,11 @@ python3 Two_V_Two/train_basic.py
 
 The current default setup is:
 
-- scenario: `academy_run_pass_and_shoot_with_keeper`
-- controlled players: `2`
+- scenario: `two_v_two_plus_goalkeepers`
+- controlled left-side outfield players: `2`
+- built-in left goalkeeper: `1`
+- built-in right-side outfield opponents: `2`
+- built-in right goalkeeper: `1`
 - observation representation: `simple115v2`
 - reward: `scoring,checkpoints`
 - policy: shared-policy PPO

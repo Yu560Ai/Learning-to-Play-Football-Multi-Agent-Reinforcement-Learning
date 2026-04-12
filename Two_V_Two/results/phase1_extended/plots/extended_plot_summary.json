@@ -1,0 +1,80 @@
+{
+  "1M": {
+    "r2_progress": {
+      "mean_assist_count": 0.0,
+      "mean_episode_return": -0.017733849569922314,
+      "mean_goal_count": 0.02,
+      "mean_pass_count": 0.0,
+      "mean_pass_to_shot_count": 0.0,
+      "mean_same_owner_possession_length": 3.325638888888889
+    },
+    "r3_assist": {
+      "mean_assist_count": 0.0,
+      "mean_episode_return": -0.055832364721863995,
+      "mean_goal_count": 0.0,
+      "mean_pass_count": 0.01,
+      "mean_pass_to_shot_count": 0.01,
+      "mean_same_owner_possession_length": 2.4875
+    },
+    "r4_anti_selfish": {
+      "mean_assist_count": 0.0,
+      "mean_episode_return": -0.05216778774556587,
+      "mean_goal_count": 0.02,
+      "mean_pass_count": 0.0,
+      "mean_pass_to_shot_count": 0.0,
+      "mean_same_owner_possession_length": 3.124166666666666
+    }
+  },
+  "200k": {
+    "r1_scoring": {
+      "mean_assist_count": 0.0,
+      "mean_episode_return": -0.07,
+      "mean_goal_count": 0.0,
+      "mean_pass_count": 0.0,
+      "mean_pass_to_shot_count": NaN,
+      "mean_same_owner_possession_length": 4.500388888888889
+    },
+    "r2_progress": {
+      "mean_assist_count": 0.0,
+      "mean_episode_return": -0.017234498334582894,
+      "mean_goal_count": 0.0,
+      "mean_pass_count": 0.0,
+      "mean_pass_to_shot_count": NaN,
+      "mean_same_owner_possession_length": 8.548333333333332
+    },
+    "r3_assist": {
+      "mean_assist_count": 0.0,
+      "mean_episode_return": -0.028198392589692957,
+      "mean_goal_count": 0.0,
+      "mean_pass_count": 0.0,
+      "mean_pass_to_shot_count": NaN,
+      "mean_same_owner_possession_length": 3.7929761904761903
+    },
+    "r4_anti_selfish": {
+      "mean_assist_count": 0.0,
+      "mean_episode_return": -0.0642980295268353,
+      "mean_goal_count": 0.0,
+      "mean_pass_count": 0.03,
+      "mean_pass_to_shot_count": NaN,
+      "mean_same_owner_possession_length": 3.8366853424353424
+    }
+  },
+  "5M": {
+    "r2_progress": {
+      "mean_assist_count": 0.0,
+      "mean_episode_return": -0.05480205352738267,
+      "mean_goal_count": 0.0,
+      "mean_pass_count": 0.0,
+      "mean_pass_to_shot_count": 0.0,
+      "mean_same_owner_possession_length": 3.384333333333333
+    },
+    "r3_assist": {
+      "mean_assist_count": 0.0,
+      "mean_episode_return": -0.025043222964159215,
+      "mean_goal_count": 0.01,
+      "mean_pass_count": 0.03,
+      "mean_pass_to_shot_count": 0.01,
+      "mean_same_owner_possession_length": 4.656563492063492
+    }
+  }
+}

@@ -35,8 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--scenario_name",
         type=str,
-        default="academy_run_pass_and_shoot_with_keeper",
-        help="GRF scenario name for the baseline run.",
+        default="two_v_two_plus_goalkeepers",
+        help="GRF scenario name for the main Two_V_Two run.",
     )
     parser.add_argument(
         "--num_agents",
@@ -98,6 +98,13 @@ def build_parser() -> argparse.ArgumentParser:
         default="r1_scoring",
         choices=["r1_scoring", "r2_progress", "r3_assist", "r4_anti_selfish"],
         help="Phase 1 reward variant to run on top of the shared-policy PPO baseline.",
+    )
+    parser.add_argument(
+        "--structure_variant",
+        type=str,
+        default="shared_ppo",
+        choices=["shared_ppo", "shared_ppo_id", "mappo_id_cc"],
+        help="Phase 2 structure variant: baseline shared PPO, shared PPO with identity, or MAPPO-style centralized critic.",
     )
     parser.add_argument(
         "--progress_reward_coef",

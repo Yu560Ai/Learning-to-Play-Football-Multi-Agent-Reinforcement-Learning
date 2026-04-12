@@ -1,0 +1,47 @@
+{
+  "r2_progress": {
+    "checkpoint": "latest.pt",
+    "checkpoint_env_steps": 1000000,
+    "checkpoint_update": 625,
+    "episodes": 50,
+    "goal_rate": 0.0,
+    "mean_assist_count": 0.0,
+    "mean_episode_length": 95.68,
+    "mean_episode_return": 0.01987335116104532,
+    "mean_goal_count": 0.0,
+    "mean_pass_count": 0.0,
+    "mean_pass_to_shot_count": 0.0,
+    "mean_same_owner_possession_length": 9.712,
+    "reward_variant": "r2_progress"
+  },
+  "r3_assist": {
+    "checkpoint": "latest.pt",
+    "checkpoint_env_steps": 1000000,
+    "checkpoint_update": 625,
+    "episodes": 50,
+    "goal_rate": 0.08,
+    "mean_assist_count": 0.0,
+    "mean_episode_length": 53.1,
+    "mean_episode_return": 0.09548386707247118,
+    "mean_goal_count": 0.08,
+    "mean_pass_count": 0.0,
+    "mean_pass_to_shot_count": 0.0,
+    "mean_same_owner_possession_length": 46.96,
+    "reward_variant": "r3_assist"
+  },
+  "r4_anti_selfish": {
+    "checkpoint": "latest.pt",
+    "checkpoint_env_steps": 1000000,
+    "checkpoint_update": 625,
+    "episodes": 50,
+    "goal_rate": 0.0,
+    "mean_assist_count": 0.0,
+    "mean_episode_length": 401.0,
+    "mean_episode_return": -7.694789441064029,
+    "mean_goal_count": 0.0,
+    "mean_pass_count": 0.0,
+    "mean_pass_to_shot_count": 0.0,
+    "mean_same_owner_possession_length": 396.74,
+    "reward_variant": "r4_anti_selfish"
+  }
+}

@@ -10,6 +10,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import torch.nn as nn
 
 
 def ensure_gym_compatibility() -> None:
@@ -66,6 +67,55 @@ def _to_numpy(tensor: torch.Tensor) -> np.ndarray:
     return tensor.detach().cpu().numpy()
 
 
+def _activation_from_id(activation_id: int) -> nn.Module:
+    if activation_id == 0:
+        return nn.Tanh()
+    if activation_id == 2:
+        return nn.LeakyReLU()
+    if activation_id == 3:
+        return nn.ELU()
+    return nn.ReLU()
+
+
+class CentralizedValueNetwork(nn.Module):
+    def __init__(self, args: Namespace, share_obs_space, device: torch.device):
+        super().__init__()
+        input_dim = int(np.prod(share_obs_space.shape))
+        hidden_size = int(args.hidden_size)
+        layer_count = max(1, int(args.layer_N))
+        layers: list[nn.Module] = []
+        last_dim = input_dim
+
+        for _ in range(layer_count):
+            linear = nn.Linear(last_dim, hidden_size)
+            if bool(args.use_orthogonal):
+                nn.init.orthogonal_(linear.weight)
+            else:
+                nn.init.xavier_uniform_(linear.weight)
+            nn.init.constant_(linear.bias, 0.0)
+            layers.extend([linear, _activation_from_id(int(args.activation_id))])
+            last_dim = hidden_size
+
+        value_head = nn.Linear(last_dim, 1)
+        if bool(args.use_orthogonal):
+            nn.init.orthogonal_(value_head.weight)
+        else:
+            nn.init.xavier_uniform_(value_head.weight)
+        nn.init.constant_(value_head.bias, 0.0)
+        layers.append(value_head)
+
+        self.model = nn.Sequential(*layers)
+        self.tpdv = dict(dtype=torch.float32, device=device)
+        self.to(device)
+
+    def forward(self, share_obs: torch.Tensor) -> torch.Tensor:
+        if not isinstance(share_obs, torch.Tensor):
+            share_obs = torch.as_tensor(share_obs, **self.tpdv)
+        else:
+            share_obs = share_obs.to(**self.tpdv)
+        return self.model(share_obs)
+
+
 class SharedPolicyPPOTrainer:
     def __init__(self, args: Namespace):
         self.args = args
@@ -81,6 +131,8 @@ class SharedPolicyPPOTrainer:
         self.metrics_path = self.run_dir / "metrics.jsonl"
         self.config_path = self.run_dir / "config.json"
         self.config_path.write_text(json.dumps(vars(args), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        self.structure_variant = str(getattr(args, "structure_variant", "shared_ppo")).lower()
+        self.use_centralized_critic = self.structure_variant == "mappo_id_cc"
 
         self.envs = self._make_train_envs()
         share_obs_space = self.envs.share_observation_space[0]
@@ -88,12 +140,39 @@ class SharedPolicyPPOTrainer:
         act_space = self.envs.action_space[0]
 
         self.algo_module = MAPPOModule(args, obs_space, share_obs_space, act_space, device=self.device)
+        self.centralized_critic = None
+        self.critic_optimizer = None
+        if self.use_centralized_critic:
+            self.centralized_critic = CentralizedValueNetwork(args, share_obs_space, self.device)
+            self.critic_optimizer = torch.optim.Adam(
+                self.centralized_critic.parameters(),
+                lr=float(args.critic_lr),
+                eps=float(args.opti_eps),
+                weight_decay=float(args.weight_decay),
+            )
         self.buffer = SharedReplayBuffer(args, args.num_agents, obs_space, share_obs_space, act_space)
 
         self.episode_length = int(args.episode_length)
         self.n_rollout_threads = int(args.n_rollout_threads)
         self.num_agents = int(args.num_agents)
         self.total_env_steps = 0
+
+    def _assert_obs_shapes(self, obs: np.ndarray, share_obs: np.ndarray, available_actions: np.ndarray) -> None:
+        expected_obs_shape = (self.n_rollout_threads, self.num_agents, self.envs.observation_space[0].shape[0])
+        expected_share_shape = (
+            self.n_rollout_threads,
+            self.num_agents,
+            self.envs.share_observation_space[0].shape[0],
+        )
+        expected_action_shape = (self.n_rollout_threads, self.num_agents, self.envs.action_space[0].n)
+        if tuple(obs.shape) != expected_obs_shape:
+            raise ValueError(f"Unexpected obs shape {obs.shape}, expected {expected_obs_shape}")
+        if tuple(share_obs.shape) != expected_share_shape:
+            raise ValueError(f"Unexpected share_obs shape {share_obs.shape}, expected {expected_share_shape}")
+        if tuple(available_actions.shape) != expected_action_shape:
+            raise ValueError(
+                f"Unexpected available_actions shape {available_actions.shape}, expected {expected_action_shape}"
+            )
 
     @staticmethod
     def _extract_env_info(infos: Any, env_idx: int) -> dict[str, Any]:
@@ -122,11 +201,31 @@ class SharedPolicyPPOTrainer:
 
     def _warmup(self):
         obs, share_obs, available_actions = self.envs.reset()
+        self._assert_obs_shapes(obs, share_obs, available_actions)
         self.buffer.init_buffer(share_obs, obs)
         self.buffer.available_actions[0] = available_actions.copy()
         self.buffer.masks[0] = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
         self.buffer.active_masks[0] = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
         return obs, share_obs, available_actions
+
+    def _value_inputs(self, obs: np.ndarray, share_obs: np.ndarray) -> np.ndarray:
+        return share_obs if self.use_centralized_critic else obs
+
+    def _predict_values(self, obs: np.ndarray, share_obs: np.ndarray, rnn_states: np.ndarray, masks: np.ndarray) -> np.ndarray:
+        value_inputs = self._value_inputs(obs, share_obs)
+        flat_inputs = value_inputs.reshape(-1, value_inputs.shape[-1])
+        if self.use_centralized_critic:
+            assert self.centralized_critic is not None
+            with torch.no_grad():
+                values = self.centralized_critic(flat_inputs)
+        else:
+            with torch.no_grad():
+                values = self.algo_module.actor.get_policy_values(
+                    flat_inputs,
+                    rnn_states.reshape(-1, *rnn_states.shape[2:]),
+                    masks.reshape(-1, 1),
+                )
+        return _to_numpy(values).reshape(self.n_rollout_threads, self.num_agents, 1)
 
     def _collect_step(self, obs, share_obs, available_actions):
         rnn_states = self.buffer.rnn_states[self.buffer.step]
@@ -145,15 +244,15 @@ class SharedPolicyPPOTrainer:
                 flat_available_actions,
                 deterministic=False,
             )
-            values = self.algo_module.actor.get_policy_values(flat_obs, flat_rnn_states, flat_masks)
 
         actions_np = _to_numpy(actions).reshape(self.n_rollout_threads, self.num_agents, -1)
         action_log_probs_np = _to_numpy(action_log_probs).reshape(self.n_rollout_threads, self.num_agents, -1)
-        values_np = _to_numpy(values).reshape(self.n_rollout_threads, self.num_agents, 1)
+        values_np = self._predict_values(obs, share_obs, rnn_states, masks)
         next_rnn_states_np = _to_numpy(next_rnn_states).reshape(self.n_rollout_threads, self.num_agents, *rnn_states.shape[2:])
 
         env_actions = actions_np.squeeze(-1).astype(np.int64)
         next_obs, next_share_obs, rewards, dones, infos, next_available_actions = self.envs.step(env_actions)
+        self._assert_obs_shapes(next_obs, next_share_obs, next_available_actions)
 
         done_array = np.asarray(dones, dtype=np.bool_)
         done_mask = done_array[..., None]
@@ -177,16 +276,10 @@ class SharedPolicyPPOTrainer:
 
     def _compute_returns(self):
         last_obs = self.buffer.obs[-1]
+        last_share_obs = self.buffer.share_obs[-1]
         last_rnn_states = self.buffer.rnn_states[-1]
         last_masks = self.buffer.masks[-1]
-
-        with torch.no_grad():
-            next_values = self.algo_module.actor.get_policy_values(
-                last_obs.reshape(-1, last_obs.shape[-1]),
-                last_rnn_states.reshape(-1, *last_rnn_states.shape[2:]),
-                last_masks.reshape(-1, 1),
-            )
-        next_values_np = _to_numpy(next_values).reshape(self.n_rollout_threads, self.num_agents, 1)
+        next_values_np = self._predict_values(last_obs, last_share_obs, last_rnn_states, last_masks)
         self.buffer.compute_returns(next_values_np, value_normalizer=None)
 
     def _value_loss(self, values, value_preds_batch, return_batch, active_masks_batch):
@@ -231,7 +324,7 @@ class SharedPolicyPPOTrainer:
             )
             for sample in data_generator:
                 (
-                    _share_obs_batch,
+                    share_obs_batch,
                     obs_batch,
                     rnn_states_batch,
                     _rnn_states_critic_batch,
@@ -246,6 +339,7 @@ class SharedPolicyPPOTrainer:
                 ) = sample
 
                 obs_batch_t = torch.as_tensor(obs_batch, dtype=torch.float32, device=self.device)
+                share_obs_batch_t = torch.as_tensor(share_obs_batch, dtype=torch.float32, device=self.device)
                 rnn_states_batch_t = torch.as_tensor(rnn_states_batch, dtype=torch.float32, device=self.device)
                 actions_batch_t = torch.as_tensor(actions_batch, dtype=torch.float32, device=self.device)
                 value_preds_batch_t = torch.as_tensor(value_preds_batch, dtype=torch.float32, device=self.device)
@@ -266,7 +360,7 @@ class SharedPolicyPPOTrainer:
                         device=self.device,
                     )
 
-                action_log_probs, dist_entropy, values = self.algo_module.actor.evaluate_actions(
+                action_log_probs, dist_entropy, actor_values = self.algo_module.actor.evaluate_actions(
                     obs_batch_t,
                     rnn_states_batch_t,
                     actions_batch_t,
@@ -274,6 +368,11 @@ class SharedPolicyPPOTrainer:
                     available_actions_batch_t,
                     active_masks_batch_t,
                 )
+                if self.use_centralized_critic:
+                    assert self.centralized_critic is not None
+                    values = self.centralized_critic(share_obs_batch_t)
+                else:
+                    values = actor_values
 
                 ratio = torch.exp(action_log_probs - old_action_log_probs_batch_t)
                 surr1 = ratio * adv_targ_t
@@ -289,19 +388,44 @@ class SharedPolicyPPOTrainer:
                     policy_loss = policy_loss_raw.mean()
 
                 value_loss = self._value_loss(values, value_preds_batch_t, return_batch_t, active_masks_batch_t)
-                loss = policy_loss + self.args.value_loss_coef * value_loss - self.args.entropy_coef * dist_entropy
+                if self.use_centralized_critic:
+                    actor_loss = policy_loss - self.args.entropy_coef * dist_entropy
+                    critic_loss = self.args.value_loss_coef * value_loss
 
-                self.algo_module.actor_optimizer.zero_grad()
-                loss.backward()
-                if self.args.use_max_grad_norm:
-                    grad_norm = torch.nn.utils.clip_grad_norm_(
-                        self.algo_module.actor.parameters(),
-                        self.args.max_grad_norm,
-                    )
-                    grad_norm_value = float(grad_norm.item() if isinstance(grad_norm, torch.Tensor) else grad_norm)
+                    self.algo_module.actor_optimizer.zero_grad()
+                    actor_loss.backward()
+                    if self.args.use_max_grad_norm:
+                        actor_grad_norm = torch.nn.utils.clip_grad_norm_(
+                            self.algo_module.actor.parameters(),
+                            self.args.max_grad_norm,
+                        )
+                        grad_norm_value = float(
+                            actor_grad_norm.item() if isinstance(actor_grad_norm, torch.Tensor) else actor_grad_norm
+                        )
+                    else:
+                        grad_norm_value = float(get_gard_norm(self.algo_module.actor.parameters()))
+                    self.algo_module.actor_optimizer.step()
+
+                    assert self.critic_optimizer is not None
+                    self.critic_optimizer.zero_grad()
+                    critic_loss.backward()
+                    if self.args.use_max_grad_norm:
+                        torch.nn.utils.clip_grad_norm_(self.centralized_critic.parameters(), self.args.max_grad_norm)
+                    self.critic_optimizer.step()
                 else:
-                    grad_norm_value = float(get_gard_norm(self.algo_module.actor.parameters()))
-                self.algo_module.actor_optimizer.step()
+                    loss = policy_loss + self.args.value_loss_coef * value_loss - self.args.entropy_coef * dist_entropy
+
+                    self.algo_module.actor_optimizer.zero_grad()
+                    loss.backward()
+                    if self.args.use_max_grad_norm:
+                        grad_norm = torch.nn.utils.clip_grad_norm_(
+                            self.algo_module.actor.parameters(),
+                            self.args.max_grad_norm,
+                        )
+                        grad_norm_value = float(grad_norm.item() if isinstance(grad_norm, torch.Tensor) else grad_norm)
+                    else:
+                        grad_norm_value = float(get_gard_norm(self.algo_module.actor.parameters()))
+                    self.algo_module.actor_optimizer.step()
 
                 with torch.no_grad():
                     log_ratio = action_log_probs - old_action_log_probs_batch_t
@@ -326,6 +450,8 @@ class SharedPolicyPPOTrainer:
         payload = {
             "actor_state_dict": self.algo_module.actor.state_dict(),
             "optimizer_state_dict": self.algo_module.actor_optimizer.state_dict(),
+            "critic_state_dict": self.centralized_critic.state_dict() if self.centralized_critic is not None else None,
+            "critic_optimizer_state_dict": self.critic_optimizer.state_dict() if self.critic_optimizer is not None else None,
             "args": vars(self.args),
             "update": update,
             "total_env_steps": self.total_env_steps,
@@ -411,6 +537,7 @@ class SharedPolicyPPOTrainer:
                 "env_steps": self.total_env_steps,
                 "episodes_finished": len(completed_returns),
                 "reward_variant": self.args.reward_variant,
+                "structure_variant": self.structure_variant,
                 "mean_episode_return": mean_return,
                 "mean_episode_length": mean_length,
                 "success_rate": success_rate,
@@ -432,6 +559,7 @@ class SharedPolicyPPOTrainer:
                 f"update={update}/{num_updates} "
                 f"env_steps={self.total_env_steps} "
                 f"variant={self.args.reward_variant} "
+                f"struct={self.structure_variant} "
                 f"return={mean_return:.3f} "
                 f"len={mean_length:.1f} "
                 f"success={success_rate:.3f} "

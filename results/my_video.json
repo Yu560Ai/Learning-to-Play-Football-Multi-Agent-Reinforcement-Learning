@@ -1,0 +1,32 @@
+{
+  "checkpoint_path": "/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Two_V_Two/results/course_runs/r2_shared_seed1/r2_progress/shared_ppo/checkpoints/latest.pt",
+  "checkpoint_name": "latest.pt",
+  "untrained": false,
+  "checkpoint_update": 50,
+  "checkpoint_env_steps": 80000,
+  "scenario_name": "two_v_two_plus_goalkeepers",
+  "reward_variant": "r2_progress",
+  "structure_variant": "shared_ppo",
+  "episodes": 1,
+  "fps": 10.0,
+  "seed": 42,
+  "video_path": "/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/results/my_video.mp4",
+  "episode_summaries": [
+    {
+      "goal_count": 0,
+      "pass_count": 0,
+      "assist_count": 0,
+      "pass_to_shot_count": 0,
+      "mean_same_owner_possession_length": 0.0,
+      "episode_return": 0.06151756168674183,
+      "episode_length": 400
+    }
+  ],
+  "mean_episode_return": 0.06151756168674183,
+  "mean_episode_length": 400.0,
+  "mean_goals": 0.0,
+  "mean_passes": 0.0,
+  "mean_pass_to_shot": 0.0,
+  "mean_assists": 0.0,
+  "mean_possession_length": 0.0
+}

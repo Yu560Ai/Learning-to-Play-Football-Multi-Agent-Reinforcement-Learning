@@ -1,0 +1,30 @@
+{
+  "checkpoint_env_steps": 64,
+  "checkpoint_name": "latest.pt",
+  "checkpoint_path": "/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Two_V_Two/results/reset_smoke/train_basic_custom_scenario/checkpoints/latest.pt",
+  "checkpoint_update": 4,
+  "episode_summaries": [
+    {
+      "assist_count": 0,
+      "episode_length": 16,
+      "episode_return": 0.0,
+      "goal_count": 0,
+      "mean_same_owner_possession_length": 0.0,
+      "pass_count": 0,
+      "pass_to_shot_count": 0
+    }
+  ],
+  "episodes": 1,
+  "fps": 10.0,
+  "mean_assist_count": 0.0,
+  "mean_episode_length": 16.0,
+  "mean_episode_return": 0.0,
+  "mean_goal_count": 0.0,
+  "mean_pass_count": 0.0,
+  "mean_pass_to_shot_count": 0.0,
+  "mean_same_owner_possession_length": 0.0,
+  "reward_variant": "r1_scoring",
+  "seed": 7,
+  "structure_variant": "shared_ppo",
+  "video_path": "/home/yuhan/Codes/RL/Learning-to-Play-Football-Multi-Agent-Reinforcement-Learning/Two_V_Two/results/reset_smoke/train_basic_custom_scenario/smoke_video.mp4"
+}

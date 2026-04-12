@@ -1,0 +1,250 @@
+{
+  "figure": "Two_V_Two/results/monitoring/r2_progress_shared_ppo_smoke/curves/learning_curves.png",
+  "group": {
+    "reward_variants": [
+      "r2_progress"
+    ],
+    "scenario_names": [
+      "two_v_two_plus_goalkeepers"
+    ],
+    "structure_variants": [
+      "shared_ppo"
+    ]
+  },
+  "metrics": {
+    "mean_assist_count": {
+      "count": [
+        0,
+        3,
+        3,
+        3
+      ],
+      "env_steps": [
+        1600,
+        3200,
+        4800,
+        6400
+      ],
+      "max": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mean": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "min": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "std": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "mean_episode_return": {
+      "count": [
+        0,
+        3,
+        3,
+        3
+      ],
+      "env_steps": [
+        1600,
+        3200,
+        4800,
+        6400
+      ],
+      "max": [
+        NaN,
+        0.1328711211681366,
+        0.0006779590621590614,
+        0.047788355499506
+      ],
+      "mean": [
+        NaN,
+        -0.11503725498914719,
+        -0.2433321624994278,
+        -0.25765755772590637
+      ],
+      "min": [
+        NaN,
+        -0.3679383397102356,
+        -0.6147734522819519,
+        -0.6163772344589233
+      ],
+      "std": [
+        NaN,
+        0.20448508858680725,
+        0.2669259011745453,
+        0.2737487256526947
+      ]
+    },
+    "mean_goal_count": {
+      "count": [
+        0,
+        3,
+        3,
+        3
+      ],
+      "env_steps": [
+        1600,
+        3200,
+        4800,
+        6400
+      ],
+      "max": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mean": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "min": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "std": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "mean_pass_count": {
+      "count": [
+        0,
+        3,
+        3,
+        3
+      ],
+      "env_steps": [
+        1600,
+        3200,
+        4800,
+        6400
+      ],
+      "max": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mean": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "min": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "std": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "mean_pass_to_shot_count": {
+      "count": [
+        0,
+        3,
+        3,
+        3
+      ],
+      "env_steps": [
+        1600,
+        3200,
+        4800,
+        6400
+      ],
+      "max": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "mean": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "min": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "std": [
+        NaN,
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "mean_same_owner_possession_length": {
+      "count": [
+        0,
+        3,
+        3,
+        3
+      ],
+      "env_steps": [
+        1600,
+        3200,
+        4800,
+        6400
+      ],
+      "max": [
+        NaN,
+        4.833333492279053,
+        3.5604166984558105,
+        3.6236112117767334
+      ],
+      "mean": [
+        NaN,
+        4.201388835906982,
+        3.3881943225860596,
+        3.3375003337860107
+      ],
+      "min": [
+        NaN,
+        3.6041667461395264,
+        3.1770832538604736,
+        2.784722328186035
+      ],
+      "std": [
+        NaN,
+        0.5024055242538452,
+        0.15889281034469604,
+        0.39095351099967957
+      ]
+    }
+  },
+  "run_root": "Two_V_Two/results/monitoring_runs/r2_progress_shared_ppo_smoke",
+  "seed_run_dirs": {
+    "1": "Two_V_Two/results/monitoring_runs/r2_progress_shared_ppo_smoke/seed_1",
+    "2": "Two_V_Two/results/monitoring_runs/r2_progress_shared_ppo_smoke/seed_2",
+    "3": "Two_V_Two/results/monitoring_runs/r2_progress_shared_ppo_smoke/seed_3"
+  }
+}

@@ -21,18 +21,19 @@ Build a clean training and evaluation pipeline for a `2v2` cooperative football 
 
 Target setup:
 
-- `2` controlled attacking agents
-- environment-controlled goalkeeper
-- environment-controlled defenders
+- `2` controlled left-side outfield agents
+- built-in left goalkeeper
+- `2` built-in right-side outfield opponents
+- built-in right goalkeeper
 - one shared team reward
-
-The first implementation should prefer the simplest scenario that already matches most of this setup. If no built-in scenario matches well enough, define a custom wrapper or scenario after the baseline is runnable.
 
 Current baseline choice:
 
-- built-in scenario: `academy_run_pass_and_shoot_with_keeper`
+- custom GRF scenario: `two_v_two_plus_goalkeepers`
 - controlled left-side players: `2`
-- built-in goalkeeper and defenders remain environment-controlled
+- built-in goalkeepers on both sides
+- built-in right-side opponents: `2`
+- full-game-style episode flow, not an academy drill
 
 ### Learning Setup
 
@@ -103,12 +104,12 @@ Goal:
 
 Frozen decisions for now:
 
-- `2` attacking RL agents
-- built-in goalkeeper
-- built-in defenders
+- `2` attacking RL agents on the left side
+- built-in left goalkeeper
+- `2` built-in right-side opponents
+- built-in right goalkeeper
 - shared policy
-- one main training environment
-- academy tasks used later for probing
+- one main custom training environment
 
 ### Phase 1: Runnable Baseline
 
@@ -201,7 +202,7 @@ Goal:
 
 Deliverables:
 
-- academy-task probe scripts
+- custom-scenario probe scripts
 - goal rate logging
 - return curve logging
 - replay dump support
@@ -276,7 +277,7 @@ Success condition:
 
 ## Immediate Next Steps
 
-1. Keep the baseline scenario fixed at `academy_run_pass_and_shoot_with_keeper` while the local stack hardens.
+1. Keep the baseline scenario fixed at `two_v_two_plus_goalkeepers` while the local stack hardens.
 2. Freeze the exact reduced action list.
 3. Write the exact `55`-d observation schema.
 4. Add evaluation probes and replay-friendly logging to the current baseline.

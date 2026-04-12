@@ -9,8 +9,9 @@ Study how cooperation emerges in a simplified 2-agent attacking Google Research 
 Current study setting:
 
 - 2 controlled attacking agents
-- built-in goalkeeper
-- environment-controlled defenders
+- built-in left goalkeeper
+- 2 built-in right-side outfield opponents
+- built-in right goalkeeper
 - reduced 55-dimensional local observation
 - reduced 14-action discrete space
 - cooperative shared reward setup
